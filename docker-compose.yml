@@ -32,5 +32,30 @@ services:
       - /app/generated
     command: sh -c "npx prisma generate && npm run start:dev"
 
+  prisma-studio:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: prisma-studio
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    ports:
+      - "5555:5555"
+    depends_on:
+      - postgres
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - /app/generated
+    command: >
+      sh -c "
+        apk add --no-cache socat &&
+        npx prisma generate &&
+        npx prisma studio --browser none --port 5556 &
+        sleep 3 &&
+        socat TCP-LISTEN:5555,fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:5556
+      "
+
 volumes:
   postgres_data:
