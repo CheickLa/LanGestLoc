@@ -5,9 +5,9 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { PrismaService } from '../prisma/prisma.service';
-import { RegisterDto } from './dto';
-import { Role } from '../../generated/prisma/enums';
+import { PrismaService } from '@/prisma/prisma.service';
+import { RegisterDto } from '@/auth/dto';
+import { Role } from '@generated/prisma/enums';
 
 const SALT_ROUNDS = 10;
 
