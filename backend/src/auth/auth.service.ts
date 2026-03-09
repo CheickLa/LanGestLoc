@@ -7,7 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RegisterDto } from '@/auth/dto';
-import { Role } from '@generated/prisma/enums';
+import { Prisma, Role } from '@generated/prisma/client';
 
 const SALT_ROUNDS = 10;
 
@@ -19,26 +19,25 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
-
-    if (existing) {
-      throw new ConflictException('Un compte avec cet email existe déjà');
-    }
-
     const hashedPassword = await bcrypt.hash(dto.password, SALT_ROUNDS);
 
-    const user = await this.prisma.user.create({
-      data: {
-        name: dto.name,
-        email: dto.email,
-        password: hashedPassword,
-        role: Role.USER,
-      },
-    });
+    try {
+      const user = await this.prisma.user.create({
+        data: {
+          name: dto.name,
+          email: dto.email,
+          password: hashedPassword,
+          role: Role.USER,
+        },
+      });
 
-    return this.buildTokenResponse(user.id, user.email, user.role);
+      return this.buildTokenResponse(user.id, user.email, user.role);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Un compte avec cet email existe déjà');
+      }
+      throw error;
+    }
   }
 
   async validateUser(email: string, password: string) {
