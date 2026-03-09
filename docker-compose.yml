@@ -11,6 +11,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
   backend:
     build:
@@ -22,49 +28,24 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
-      PORT: 3001
+      PORT: ${PORT:-3000}
       CHOKIDAR_USEPOLLING: "true"
     ports:
-      - "3001:3001"
-    depends_on:
-      - postgres
-    volumes:
-      - ./backend:/app
-      - /app/generated
-    command: sh -c "rm -rf dist && npm install && npx prisma generate && npm run start:dev"
-    healthcheck:
-      test: ["CMD-SHELL", "test -f /app/node_modules/.package-lock.json"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 10s
-
-  prisma-studio:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: prisma-studio
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-    ports:
-      - "5555:5555"
+      - "${PORT:-3000}:${PORT:-3000}"
     depends_on:
       postgres:
-        condition: service_started
-      backend:
         condition: service_healthy
     volumes:
       - ./backend:/app
-      - /app/generated
-    command: >
-      sh -c "
-        apk add --no-cache socat &&
-        npx prisma generate &&
-        npx prisma studio --browser none --port 5556 &
-        sleep 3 &&
-        socat TCP-LISTEN:5555,fork,reuseaddr,bind=0.0.0.0 TCP:127.0.0.1:5556
-      "
+      - backend_generated:/app/generated
+    command: sh -c "npm install && npx prisma generate && npm run start:dev"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost ${PORT:-3000} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
 
 volumes:
   postgres_data:
+  backend_generated:

@@ -129,7 +129,7 @@ model Rent {
   @@index([contractId])
 }
 
-/// Loyer mensuelle due
+/// Loyer mensuel dû 
 model RentDue {
   id          Int            @id @default(autoincrement())
   contractId  Int
