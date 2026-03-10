@@ -7,8 +7,185 @@
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
+  moduleFormat  = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
 }
+
+/// Rôle de l'utilisateur dans l'application
+enum Role {
+  ADMIN
+  USER
+}
+
+/// Statut du contrat de location
+enum ContractStatus {
+  ACTIVE
+  TERMINATED
+  CANCELED
+}
+
+/// Moyen de paiement utilisé par le locataire
+enum PaymentMethod {
+  CASH
+  ORANGE_MONEY
+  MOBILE_MONEY
+}
+
+/// Type de paiement (loyer ou restitution de caution)
+enum PaymentType {
+  RENT
+  DEPOSIT_REFUND
+}
+
+/// Statut d'une échéance de loyer
+enum RentDueStatus {
+  PENDING
+  PAID
+  LATE
+}
+
+/// Statut de la caution
+enum DepositStatus {
+  HELD
+  USED
+  REFUNDED
+}
+
+/// Utilisateur de l'application (admin ou user)
+model User {
+  id        Int       @id @default(autoincrement())
+  name      String
+  email     String    @unique
+  password  String
+  role      Role
+  createdAt DateTime  @default(now())
+
+  contracts Contract[] @relation("CreatedContracts")
+  payments  Payment[]
+}
+
+/// Local commercial (boutique louée à un locataire)
+model Local {
+  id        Int       @id @default(autoincrement())
+  code      String    @unique
+  name      String    @unique
+  createdAt DateTime  @default(now())
+
+  contracts Contract[]
+}
+
+/// Locataire (commerçant qui loue un local)
+model Tenant {
+  id           Int       @id @default(autoincrement())
+  name         String
+  activity     String?
+  phone        String
+  dateOfBirth  DateTime
+  idNumber     String    @unique
+  createdAt    DateTime  @default(now())
+
+  contracts    Contract[]
+}
+
+/// Contrat de location entre un locataire et un local
+model Contract {
+  id           Int             @id @default(autoincrement())
+  localId      Int
+  tenantId     Int
+  startDate    DateTime
+  endDate      DateTime?
+  status       ContractStatus
+  createdById  Int
+  createdAt    DateTime        @default(now())
+
+  local        Local           @relation(fields: [localId], references: [id])
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
+  createdBy    User            @relation("CreatedContracts", fields: [createdById], references: [id])
+
+  rents        Rent[]
+  rentDues     RentDue[]
+  payments     Payment[]
+  deposit      Deposit?
+
+  @@index([localId])
+  @@index([tenantId])
+}
+
+/// Loyer associé à un contrat (historique des montants et augmentations)
+model Rent {
+  id          Int       @id @default(autoincrement())
+  contractId  Int
+  amount      Int
+  startDate   DateTime
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+
+  contract    Contract  @relation(fields: [contractId], references: [id])
+  rentDues    RentDue[]
+
+  @@index([contractId])
+}
+
+/// Loyer mensuel dû 
+model RentDue {
+  id          Int            @id @default(autoincrement())
+  contractId  Int
+  rentId      Int
+  month       DateTime
+  amount      Int
+  dueDate     DateTime
+  status      RentDueStatus  @default(PENDING)
+  createdAt   DateTime       @default(now())
+
+  paymentId   Int?           @unique
+
+  contract    Contract       @relation(fields: [contractId], references: [id])
+  rent        Rent           @relation(fields: [rentId], references: [id])
+  payment     Payment?       @relation(fields: [paymentId], references: [id])
+
+  @@unique([contractId, month])
+  @@index([rentId])
+}
+
+/// Paiement effectué par un locataire (transaction réelle)
+model Payment {
+  id             Int           @id @default(autoincrement())
+  contractId     Int
+  type           PaymentType
+  amount         Int
+  paymentDate    DateTime
+  paymentMethod  PaymentMethod
+  createdById    Int
+  createdAt      DateTime      @default(now())
+
+  contract       Contract      @relation(fields: [contractId], references: [id])
+  createdBy      User          @relation(fields: [createdById], references: [id])
+  rentDues       RentDue[]
+  receipt        Receipt?
+}
+
+/// Caution associée à un contrat (une seule par contrat)
+model Deposit {
+  id          Int           @id @default(autoincrement())
+  contractId  Int           @unique
+  amount      Int
+  status      DepositStatus @default(HELD)
+  createdAt   DateTime      @default(now())
+
+  contract    Contract      @relation(fields: [contractId], references: [id])
+}
+
+/// Reçu généré pour un paiement (preuve officielle)
+model Receipt {
+  id           Int       @id @default(autoincrement())
+  paymentId    Int       @unique
+  receiptNo    String    @unique
+  pdfPath      String
+  createdAt    DateTime  @default(now())
+
+  payment      Payment   @relation(fields: [paymentId], references: [id])
+}
+
