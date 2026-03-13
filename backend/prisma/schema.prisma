@@ -34,7 +34,7 @@ enum PaymentMethod {
   MOBILE_MONEY
 }
 
-/// Type de paiement (loyer ou restitution de caution)
+/// Type de paiement
 enum PaymentType {
   RENT
   DEPOSIT_REFUND
@@ -54,138 +54,213 @@ enum DepositStatus {
   REFUNDED
 }
 
-/// Utilisateur de l'application (admin ou user)
+/// Utilisateur de l'application (ADMIN ou USER)
 model User {
-  id        Int       @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   name      String
-  email     String    @unique
+  email     String   @unique
   password  String
   role      Role
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   contracts Contract[] @relation("CreatedContracts")
   payments  Payment[]
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 /// Local commercial (boutique louée à un locataire)
+/// Règle : un seul contrat ACTIVE à la fois (enforced côté service)
 model Local {
-  id        Int       @id @default(autoincrement())
-  code      String    @unique
-  name      String    @unique
-  createdAt DateTime  @default(now())
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  name      String   @unique
+  createdAt DateTime @default(now())
 
   contracts Contract[]
 }
 
-/// Locataire (commerçant qui loue un local)
-model Tenant {
-  id           Int       @id @default(autoincrement())
-  name         String
-  activity     String?
-  phone        String
-  dateOfBirth  DateTime
-  idNumber     String    @unique
-  createdAt    DateTime  @default(now())
+// ─────────────────────────────────────────────────────────────────────────────
 
-  contracts    Contract[]
+/// Locataire (commerçant qui loue un local)
+/// Un locataire peut avoir plusieurs contrats dans le temps
+model Tenant {
+  id          Int      @id @default(autoincrement())
+  name        String
+  activity    String?
+  phone       String
+  dateOfBirth DateTime
+  idNumber    String   @unique
+  createdAt   DateTime @default(now())
+
+  contracts Contract[]
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 /// Contrat de location entre un locataire et un local
+/// Règles :
+///   - Un local ne peut avoir qu'un seul contrat ACTIVE à la fois
+///   - Impossible d'avoir des dates qui chevauchent un contrat existant
+///   - Annulation possible uniquement si aucun paiement n'existe
+///   - Suppression impossible si des paiements existent
 model Contract {
-  id           Int             @id @default(autoincrement())
-  localId      Int
-  tenantId     Int
-  startDate    DateTime
-  endDate      DateTime?
-  status       ContractStatus
-  createdById  Int
-  createdAt    DateTime        @default(now())
+  id          Int            @id @default(autoincrement())
+  localId     Int
+  tenantId    Int
+  startDate   DateTime
+  endDate     DateTime?
+  status      ContractStatus
+  createdById Int
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
-  local        Local           @relation(fields: [localId], references: [id])
-  tenant       Tenant          @relation(fields: [tenantId], references: [id])
-  createdBy    User            @relation("CreatedContracts", fields: [createdById], references: [id])
+  local     Local   @relation(fields: [localId], references: [id])
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  createdBy User    @relation("CreatedContracts", fields: [createdById], references: [id])
 
-  rents        Rent[]
-  rentDues     RentDue[]
-  payments     Payment[]
-  deposit      Deposit?
+  rents    Rent[]
+  rentDues RentDue[]
+  payments Payment[]
+  deposit  Deposit?
 
   @@index([localId])
   @@index([tenantId])
+  @@index([status])
 }
 
-/// Loyer associé à un contrat (historique des montants et augmentations)
-model Rent {
-  id          Int       @id @default(autoincrement())
-  contractId  Int
-  amount      Int
-  startDate   DateTime
-  endDate     DateTime?
-  createdAt   DateTime  @default(now())
+// ─────────────────────────────────────────────────────────────────────────────
 
-  contract    Contract  @relation(fields: [contractId], references: [id])
-  rentDues    RentDue[]
+/// Loyer associé à un contrat — représente le tarif en vigueur sur une période
+/// Règles :
+///   - Un seul Rent actif (effectiveTo = null) par contrat à la fois
+///   - Une augmentation crée un nouveau Rent, sans modifier l'ancien
+///   - Un Rent déjà utilisé (ayant des RentDue) ne peut pas être modifié
+///   - Un Rent ayant généré des paiements ne peut pas être supprimé
+model Rent {
+  id            Int       @id @default(autoincrement())
+  contractId    Int
+  amount        Int
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdAt     DateTime  @default(now())
+
+  contract Contract  @relation(fields: [contractId], references: [id])
+  rentDues RentDue[]
 
   @@index([contractId])
 }
 
-/// Loyer mensuel dû 
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Échéance mensuelle de loyer (dette générée automatiquement)
+/// Règles :
+///   - Une seule échéance par mois par contrat (@@unique)
+///   - Passe automatiquement en LATE après le 05 du mois suivant
+///   - Une échéance PAID ne peut plus changer de statut
+///   - month est TOUJOURS stocké au 1er du mois à 00:00:00 UTC (enforced côté service)
 model RentDue {
-  id          Int            @id @default(autoincrement())
-  contractId  Int
-  rentId      Int
-  month       DateTime
-  amount      Int
-  dueDate     DateTime
-  status      RentDueStatus  @default(PENDING)
-  createdAt   DateTime       @default(now())
+  id         Int           @id @default(autoincrement())
+  contractId Int
+  rentId     Int
+  month      DateTime
+  amount     Int
+  dueDate    DateTime
+  status     RentDueStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
-  paymentId   Int?           @unique
-
-  contract    Contract       @relation(fields: [contractId], references: [id])
-  rent        Rent           @relation(fields: [rentId], references: [id])
-  payment     Payment?       @relation(fields: [paymentId], references: [id])
+  contract     Contract      @relation(fields: [contractId], references: [id])
+  rent         Rent          @relation(fields: [rentId], references: [id])
+  paymentLines PaymentLine[]
 
   @@unique([contractId, month])
   @@index([rentId])
+  @@index([status])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 /// Paiement effectué par un locataire (transaction réelle)
+/// Règles :
+///   - Paiement partiel interdit : amount doit égaler la somme exacte des RentDue couvertes
+///   - Un paiement peut couvrir plusieurs mois (multi-mois via PaymentLine)
+///   - Impossible de payer une échéance déjà PAID
 model Payment {
-  id             Int           @id @default(autoincrement())
-  contractId     Int
-  type           PaymentType
-  amount         Int
-  paymentDate    DateTime
-  paymentMethod  PaymentMethod
-  createdById    Int
-  createdAt      DateTime      @default(now())
+  id            Int           @id @default(autoincrement())
+  contractId    Int
+  type          PaymentType
+  amount        Int
+  paymentDate   DateTime
+  paymentMethod PaymentMethod
+  createdById   Int
+  createdAt     DateTime      @default(now())
 
-  contract       Contract      @relation(fields: [contractId], references: [id])
-  createdBy      User          @relation(fields: [createdById], references: [id])
-  rentDues       RentDue[]
-  receipt        Receipt?
+  contract     Contract      @relation(fields: [contractId], references: [id])
+  createdBy    User          @relation(fields: [createdById], references: [id])
+  paymentLines PaymentLine[]
+  receipt      Receipt?
+
+  @@index([contractId])
+  @@index([paymentDate])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Jointure entre Payment et RentDue
+/// Permet le paiement multi-mois en un seul Payment
+/// Règle clé : @unique([rentDueId]) garantit qu'une RentDue ne peut être soldée qu'une seule fois
+model PaymentLine {
+  id        Int @id @default(autoincrement())
+  paymentId Int
+  rentDueId Int
+
+  payment Payment @relation(fields: [paymentId], references: [id])
+  rentDue RentDue @relation(fields: [rentDueId], references: [id])
+
+  @@unique([rentDueId])
+  @@index([paymentId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 /// Caution associée à un contrat (une seule par contrat)
+/// Règles :
+///   - Une seule caution par contrat (@unique sur contractId)
+///   - À la fin du contrat : USED (utilisée pour payer) ou REFUNDED (restituée)
+///   - usedAt et refundedAt tracent la date de l'opération
+///   - usageNote permet de décrire librement l'utilisation (ex: "Soldé janvier 2025")
 model Deposit {
-  id          Int           @id @default(autoincrement())
-  contractId  Int           @unique
-  amount      Int
-  status      DepositStatus @default(HELD)
-  createdAt   DateTime      @default(now())
+  id         Int           @id @default(autoincrement())
+  contractId Int           @unique
+  amount     Int
+  status     DepositStatus @default(HELD)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
 
-  contract    Contract      @relation(fields: [contractId], references: [id])
+  /// Renseigné si status = USED
+  usedAt    DateTime?
+  usageNote String?
+
+  /// Renseigné si status = REFUNDED
+  refundedAt DateTime?
+
+  contract Contract @relation(fields: [contractId], references: [id])
 }
 
-/// Reçu généré pour un paiement (preuve officielle)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Reçu officiel généré pour chaque paiement — immuable après création
+/// Règles :
+///   - Impossible de modifier ou supprimer un reçu
+///   - Le PDF est stocké sur S3 (s3Key = clé du fichier dans le bucket)
+///   - receiptNo est un identifiant unique lisible (ex: REC-2024-00042)
 model Receipt {
-  id           Int       @id @default(autoincrement())
-  paymentId    Int       @unique
-  receiptNo    String    @unique
-  pdfPath      String
-  createdAt    DateTime  @default(now())
+  id        Int      @id @default(autoincrement())
+  paymentId Int      @unique
+  receiptNo String   @unique
+  s3Key     String
+  createdAt DateTime @default(now())
 
-  payment      Payment   @relation(fields: [paymentId], references: [id])
+  payment Payment @relation(fields: [paymentId], references: [id])
 }
-
