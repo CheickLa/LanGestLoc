@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '@/prisma/prisma.module';
 import { AuthModule } from '@/auth/auth.module';
 import { LocalsModule } from './locals/locals.module';
+import { TenantsModule } from './tenants/tenants.module';
 
 @Module({
   imports: [
@@ -10,6 +11,7 @@ import { LocalsModule } from './locals/locals.module';
     PrismaModule,
     AuthModule,
     LocalsModule,
+    TenantsModule,
   ],
   controllers: [],
   providers: [],
