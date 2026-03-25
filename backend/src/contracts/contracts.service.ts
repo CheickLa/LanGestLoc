@@ -64,12 +64,20 @@ export class ContractsService {
   }
 
   async findAll() {
-    return this.prisma.contract.findMany({
+    const contracts = await this.prisma.contract.findMany({
       include: {
         local: true,
         tenant: true,
+        rents: {
+          where: { effectiveTo: null },
+        },
       },
     });
+
+    return contracts.map(({ rents, ...contract }) => ({
+      ...contract,
+      activeRent: rents[0] ?? null,
+    }));
   }
 
   async findOne(id: number) {
@@ -78,7 +86,9 @@ export class ContractsService {
       include: {
         local: true,
         tenant: true,
-        rents: true,
+        rents: {
+          orderBy: { effectiveFrom: 'asc' },
+        },
         deposit: true,
       },
     });
@@ -87,7 +97,9 @@ export class ContractsService {
       throw new NotFoundException(`Contract with ID ${id} not found`);
     }
 
-    return contract;
+    const activeRent = contract.rents.find((r) => r.effectiveTo === null) ?? null;
+
+    return { ...contract, activeRent };
   }
 
   async terminate(id: number, dto: TerminateContractDto) {
