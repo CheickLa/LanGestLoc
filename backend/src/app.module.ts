@@ -5,6 +5,7 @@ import { AuthModule } from '@/auth/auth.module';
 import { LocalsModule } from './locals/locals.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { ContractsModule } from './contracts/contracts.module';
+import { RentsModule } from './rents/rents.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { ContractsModule } from './contracts/contracts.module';
     LocalsModule,
     TenantsModule,
     ContractsModule,
+    RentsModule,
   ],
   controllers: [],
   providers: [],
