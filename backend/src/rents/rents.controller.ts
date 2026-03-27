@@ -11,7 +11,7 @@ export class RentsController {
   constructor(private readonly rentsService: RentsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Augmenter le loyer (SCD — crée un nouveau Rent, clôture l\'ancien)' })
+  @ApiOperation({ summary: 'Augmenter le loyer (SCD crée un nouveau Rent, clôture l\'ancien)' })
   @ApiResponse({ status: 201, description: 'Nouveau loyer créé, ancien clôturé' })
   @ApiResponse({ status: 400, description: 'Montant identique, date incohérente ou données invalides' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })

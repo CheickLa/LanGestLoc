@@ -131,7 +131,7 @@ model Contract {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Loyer associé à un contrat — représente le tarif en vigueur sur une période
+/// Loyer associé à un contrat : représente le tarif en vigueur sur une période
 /// Règles :
 ///   - Un seul Rent actif (effectiveTo = null) par contrat à la fois
 ///   - Une augmentation crée un nouveau Rent, sans modifier l'ancien
@@ -250,7 +250,7 @@ model Deposit {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Reçu officiel généré pour chaque paiement — immuable après création
+/// Reçu officiel généré pour chaque paiement : immuable après création
 /// Règles :
 ///   - Impossible de modifier ou supprimer un reçu
 ///   - Le PDF est stocké sur S3 (s3Key = clé du fichier dans le bucket)

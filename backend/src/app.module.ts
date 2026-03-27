@@ -6,6 +6,7 @@ import { LocalsModule } from './locals/locals.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { RentsModule } from './rents/rents.module';
+import { RentDueModule } from './rent-due/rent-due.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { RentsModule } from './rents/rents.module';
     TenantsModule,
     ContractsModule,
     RentsModule,
+    RentDueModule,
   ],
   controllers: [],
   providers: [],
