@@ -24,7 +24,7 @@ export class RentsService {
     // Le nouveau montant doit être différent de l'actuel
     if (amount === activeRent.amount) {
       throw new BadRequestException(
-        `Le nouveau montant (${amount}) est identique au loyer actuel — aucune modification nécessaire`,
+        `Le nouveau montant (${amount}) est identique au loyer actuel aucune modification nécessaire`,
       );
     }
 
