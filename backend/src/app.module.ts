@@ -7,6 +7,7 @@ import { TenantsModule } from './tenants/tenants.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { RentsModule } from './rents/rents.module';
 import { RentDueModule } from './rent-due/rent-due.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { RentDueModule } from './rent-due/rent-due.module';
     ContractsModule,
     RentsModule,
     RentDueModule,
+    PaymentsModule,
   ],
   controllers: [],
   providers: [],
