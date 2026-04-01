@@ -89,7 +89,7 @@ export class PaymentsService {
       });
 
       // Génère le reçu PDF après le commit de la transaction
-      // En cas d'échec, le paiement reste valide — le reçu pourra être regénéré
+      // En cas d'échec, le paiement reste valide et le reçu pourra être regénéré
       try {
         await this.receiptsService.generate(payment.id);
       } catch (error) {
