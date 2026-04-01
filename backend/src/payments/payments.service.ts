@@ -1,16 +1,23 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { ReceiptsService } from '@/receipts/receipts.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { ContractStatus, PaymentType, RentDueStatus } from '@generated/prisma/client';
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(PaymentsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly receiptsService: ReceiptsService,
+  ) {}
 
   async create(dto: CreatePaymentDto, userId: number) {
     const { rentDueIds, paymentDate, paymentMethod } = dto;
@@ -55,13 +62,13 @@ export class PaymentsService {
     const amount = rentDues.reduce((sum, r) => sum + r.amount, 0);
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const payment = await this.prisma.$transaction(async (tx) => {
         await tx.rentDue.updateMany({
           where: { id: { in: uniqueIds } },
           data: { status: RentDueStatus.PAID },
         });
 
-        const payment = await tx.payment.create({
+        return tx.payment.create({
           data: {
             contractId,
             type: PaymentType.RENT,
@@ -79,9 +86,17 @@ export class PaymentsService {
             },
           },
         });
-
-        return payment;
       });
+
+      // Génère le reçu PDF après le commit de la transaction
+      // En cas d'échec, le paiement reste valide — le reçu pourra être regénéré
+      try {
+        await this.receiptsService.generate(payment.id);
+      } catch (error) {
+        this.logger.error(`Échec génération reçu pour paiement #${payment.id}`, error);
+      }
+
+      return payment;
     } catch (error: any) {
       if (error.code === 'P2002') {
         throw new ConflictException(
