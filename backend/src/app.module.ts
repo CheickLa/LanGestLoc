@@ -8,11 +8,14 @@ import { ContractsModule } from './contracts/contracts.module';
 import { RentsModule } from './rents/rents.module';
 import { RentDueModule } from './rent-due/rent-due.module';
 import { PaymentsModule } from './payments/payments.module';
+import { S3Module } from './s3/s3.module';
+import { ReceiptsModule } from './receipts/receipts.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    S3Module,
     AuthModule,
     LocalsModule,
     TenantsModule,
@@ -20,6 +23,7 @@ import { PaymentsModule } from './payments/payments.module';
     RentsModule,
     RentDueModule,
     PaymentsModule,
+    ReceiptsModule,
   ],
   controllers: [],
   providers: [],
