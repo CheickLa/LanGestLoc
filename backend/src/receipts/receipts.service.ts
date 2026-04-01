@@ -1,0 +1,84 @@
+import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '@/prisma/prisma.service';
+import { S3Service } from '@/s3/s3.service';
+import { buildReceiptPdf } from './pdf/pdf-builder';
+
+@Injectable()
+export class ReceiptsService {
+  private readonly logger = new Logger(ReceiptsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly s3: S3Service,
+  ) {}
+
+  async generate(paymentId: number) {
+    const existing = await this.prisma.receipt.findUnique({ where: { paymentId } });
+    if (existing) return existing;
+
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        contract: {
+          include: {
+            tenant: true,
+            local: true,
+          },
+        },
+        paymentLines: {
+          include: { rentDue: true },
+        },
+      },
+    });
+    if (!payment) throw new NotFoundException(`Paiement #${paymentId} non trouvé`);
+
+    const receipt = await this.prisma.$transaction(async (tx) => {
+      const year = new Date().getUTCFullYear();
+      const lastReceipt = await tx.receipt.findFirst({
+        where: { receiptNo: { startsWith: `REC-${year}-` } },
+        orderBy: { receiptNo: 'desc' },
+      });
+      const seq = lastReceipt
+        ? parseInt(lastReceipt.receiptNo.split('-')[2], 10) + 1
+        : 1;
+      const receiptNo = `REC-${year}-${String(seq).padStart(5, '0')}`;
+
+      const pdfBuffer = await buildReceiptPdf(payment, receiptNo);
+
+      // Upload PDF sur S3
+      const s3Key = `receipts/${year}/${receiptNo}.pdf`;
+      await this.s3.upload(s3Key, pdfBuffer, 'application/pdf');
+
+      return tx.receipt.create({
+        data: {
+          paymentId,
+          receiptNo,
+          s3Key,
+        },
+      });
+    });
+
+    return receipt;
+  }
+
+  async findByPayment(paymentId: number) {
+    const receipt = await this.prisma.receipt.findUnique({
+      where: { paymentId },
+    });
+    if (!receipt) throw new NotFoundException(`Aucun reçu pour le paiement #${paymentId}`);
+    return receipt;
+  }
+
+  async download(id: number): Promise<{ buffer: Buffer; receiptNo: string }> {
+    const receipt = await this.prisma.receipt.findUnique({ where: { id } });
+    if (!receipt) throw new NotFoundException(`Reçu #${id} non trouvé`);
+
+    try {
+      const buffer = await this.s3.getObject(receipt.s3Key);
+      return { buffer, receiptNo: receipt.receiptNo };
+    } catch (error) {
+      this.logger.error(`Impossible de récupérer le fichier S3 : ${receipt.s3Key}`, error);
+      throw new InternalServerErrorException('Le fichier PDF du reçu est temporairement indisponible');
+    }
+  }
+}
