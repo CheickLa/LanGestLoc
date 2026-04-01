@@ -1,4 +1,5 @@
 import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
 import { S3Service } from '@/s3/s3.service';
 import { buildReceiptPdf } from './pdf/pdf-builder';
@@ -6,11 +7,17 @@ import { buildReceiptPdf } from './pdf/pdf-builder';
 @Injectable()
 export class ReceiptsService {
   private readonly logger = new Logger(ReceiptsService.name);
+  private readonly bailleur: string;
+  private readonly lieu: string;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3: S3Service,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    this.bailleur = this.config.getOrThrow<string>('BAILLEUR_NAME');
+    this.lieu = this.config.getOrThrow<string>('BAILLEUR_LIEU');
+  }
 
   async generate(paymentId: number) {
     const existing = await this.prisma.receipt.findUnique({ where: { paymentId } });
@@ -43,7 +50,7 @@ export class ReceiptsService {
         : 1;
       const receiptNo = `REC-${year}-${String(seq).padStart(5, '0')}`;
 
-      const pdfBuffer = await buildReceiptPdf(payment, receiptNo);
+      const pdfBuffer = await buildReceiptPdf(payment, receiptNo, this.bailleur, this.lieu);
 
       // Upload PDF sur S3
       const s3Key = `receipts/${year}/${receiptNo}.pdf`;
