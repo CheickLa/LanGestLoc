@@ -1,53 +1,70 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Role } from '@generated/prisma/client';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
+import { Roles } from '@/auth/decorators';
 
+@ApiTags('Locataires')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('tenants')
 export class TenantsController {
   constructor(private readonly tenantsService: TenantsService) {}
 
   @Post()
-  @ApiOperation({ summary: "Créer un nouveau locataire" })
-  @ApiResponse({ status: 201, description: "Le locataire a été créé avec succès." })
-  @ApiResponse({ status: 400, description: "Requête invalide (ex: date de naissance dans le futur)." })
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Créer un nouveau locataire (ADMIN)' })
+  @ApiResponse({ status: 201, description: 'Le locataire a été créé avec succès.' })
+  @ApiResponse({ status: 400, description: 'Requête invalide (ex: date de naissance dans le futur).' })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
+  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
   @ApiResponse({ status: 409, description: "Conflit (ex: numéro d'identité ou téléphone déjà utilisé)." })
   create(@Body() createTenantDto: CreateTenantDto) {
     return this.tenantsService.create(createTenantDto);
   }
 
   @Get()
-  @ApiOperation({ summary: "Récupérer tous les locataires" })
-  @ApiResponse({ status: 200, description: "Retourne la liste de tous les locataires." })
+  @ApiOperation({ summary: 'Récupérer tous les locataires' })
+  @ApiResponse({ status: 200, description: 'Retourne la liste de tous les locataires.' })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   findAll() {
     return this.tenantsService.findAll();
   }
 
   @Get(':id')
-  @ApiOperation({ summary: "Récupérer un locataire par son ID" })
+  @ApiOperation({ summary: 'Récupérer un locataire par son ID' })
   @ApiResponse({ status: 200, description: "Retourne le locataire correspondant à l'ID spécifié." })
-  @ApiResponse({ status: 404, description: "Locataire non trouvé." })
-  findOne(@Param('id') id: string) {
-    return this.tenantsService.findOne(+id);
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
+  @ApiResponse({ status: 404, description: 'Locataire non trouvé.' })
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.tenantsService.findOne(id);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: "Mettre à jour un locataire" })
-  @ApiResponse({ status: 200, description: "Le locataire a été mis à jour avec succès." })
-  @ApiResponse({ status: 400, description: "Requête invalide (ex: date de naissance dans le futur)." })
-  @ApiResponse({ status: 404, description: "Locataire non trouvé." })
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Mettre à jour un locataire (ADMIN)' })
+  @ApiResponse({ status: 200, description: 'Le locataire a été mis à jour avec succès.' })
+  @ApiResponse({ status: 400, description: 'Requête invalide (ex: date de naissance dans le futur).' })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
+  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({ status: 404, description: 'Locataire non trouvé.' })
   @ApiResponse({ status: 409, description: "Conflit (ex: numéro d'identité ou téléphone déjà utilisé)." })
-  update(@Param('id') id: string, @Body() updateTenantDto: UpdateTenantDto) {
-    return this.tenantsService.update(+id, updateTenantDto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateTenantDto: UpdateTenantDto) {
+    return this.tenantsService.update(id, updateTenantDto);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: "Supprimer un locataire" })
-  @ApiResponse({ status: 200, description: "Le locataire a été supprimé avec succès." })
-  @ApiResponse({ status: 404, description: "Locataire non trouvé." })
-  @ApiResponse({ status: 409, description: "Conflit (ex: locataire lié à des contrats existants)." })
-  remove(@Param('id') id: string) {
-    return this.tenantsService.remove(+id);
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Supprimer un locataire (ADMIN)' })
+  @ApiResponse({ status: 200, description: 'Le locataire a été supprimé avec succès.' })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
+  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({ status: 404, description: 'Locataire non trouvé.' })
+  @ApiResponse({ status: 409, description: 'Conflit (ex: locataire lié à des contrats existants).' })
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.tenantsService.remove(id);
   }
 }
