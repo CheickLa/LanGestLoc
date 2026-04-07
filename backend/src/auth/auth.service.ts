@@ -27,7 +27,7 @@ export class AuthService {
           name: dto.name,
           email: dto.email,
           password: hashedPassword,
-          role: Role.USER,
+          role: dto.role ?? Role.USER,
         },
       });
 
@@ -60,6 +60,14 @@ export class AuthService {
 
   async login(user: { id: number; email: string; role: Role }) {
     return this.buildTokenResponse(user.id, user.email, user.role);
+  }
+
+  async getProfile(userId: number) {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, role: true, createdAt: true },
+    });
+    return user;
   }
 
   private buildTokenResponse(userId: number, email: string, role: Role) {
