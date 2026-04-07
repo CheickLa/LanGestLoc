@@ -36,14 +36,25 @@ export class LocalsService {
   }
 
   async update(id: number, updateLocalDto: UpdateLocalDto) {
-    try {
-      return await this.prisma.local.update({
-        where: { id },
-        data: updateLocalDto,
-      });
-    } catch (error) {
+    const local = await this.prisma.local.findUnique({ where: { id } });
+
+    if (!local) {
       throw new NotFoundException(`Local avec l'ID ${id} non trouvé`);
     }
+
+    if (updateLocalDto.code && updateLocalDto.code !== local.code) {
+      const existing = await this.prisma.local.findUnique({
+        where: { code: updateLocalDto.code },
+      });
+      if (existing) {
+        throw new ConflictException(`Un local avec le code ${updateLocalDto.code} existe déjà`);
+      }
+    }
+
+    return this.prisma.local.update({
+      where: { id },
+      data: updateLocalDto,
+    });
   }
 
  async remove(id: number) {
