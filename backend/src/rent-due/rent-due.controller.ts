@@ -1,21 +1,25 @@
 import { Controller, Get, Post, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Role, RentDueStatus } from '@generated/prisma/client';
 import { RentDueService } from './rent-due.service';
 import { CreateRentDueDto } from './dto/create-rent-due.dto';
-import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
-import { RentDueStatus } from '@generated/prisma/client';
+import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
+import { Roles } from '@/auth/decorators';
 
 @ApiTags('Échéances')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('rent-dues')
 export class RentDueController {
   constructor(private readonly rentDueService: RentDueService) {}
 
   @Post('generate')
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Générer manuellement une échéance pour un contrat et un mois donnés' })
   @ApiResponse({ status: 201, description: 'Échéance créée' })
   @ApiResponse({ status: 400, description: 'Données invalides (format du mois incorrect, etc.)' })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
+  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé ou aucun loyer actif' })
   @ApiResponse({ status: 409, description: 'Contrat non actif ou échéance déjà existante pour ce mois' })
   generate(@Body() dto: CreateRentDueDto) {
@@ -25,6 +29,7 @@ export class RentDueController {
   @Get('contract/:contractId')
   @ApiOperation({ summary: 'Lister toutes les échéances d\'un contrat' })
   @ApiResponse({ status: 200, description: 'Liste des échéances triées par mois décroissant' })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
   findAllByContract(@Param('contractId', ParseIntPipe) contractId: number) {
     return this.rentDueService.findAllByContract(contractId);
@@ -33,19 +38,26 @@ export class RentDueController {
   @Get('contract/:contractId/pending')
   @ApiOperation({ summary: 'Lister les échéances PENDING d\'un contrat' })
   @ApiResponse({ status: 200, description: 'Liste des échéances en attente de paiement' })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
   findPendingByContract(@Param('contractId', ParseIntPipe) contractId: number) {
     return this.rentDueService.findByContract(contractId, RentDueStatus.PENDING);
   }
 
   @Post('cron/generate')
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: '[DEV] Déclenche manuellement le cron de génération des échéances' })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
+  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
   triggerGenerate() {
     return this.rentDueService.generateForAllActiveContracts();
   }
 
   @Post('cron/mark-late')
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: '[DEV] Déclenche manuellement le cron de passage en LATE' })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
+  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
   triggerMarkLate() {
     return this.rentDueService.markOverdueAsLate();
   }
