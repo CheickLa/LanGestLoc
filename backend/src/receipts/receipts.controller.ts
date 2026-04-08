@@ -2,11 +2,11 @@ import { Controller, Get, Param, ParseIntPipe, Res, UseGuards } from '@nestjs/co
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { Response } from 'express';
 import { ReceiptsService } from './receipts.service';
-import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
+import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 
-@ApiTags('Receipts')
+@ApiTags('Reçus')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('receipts')
 export class ReceiptsController {
   constructor(private readonly receiptsService: ReceiptsService) {}
@@ -15,6 +15,7 @@ export class ReceiptsController {
   @ApiOperation({ summary: 'Récupérer le reçu d\'un paiement' })
   @ApiParam({ name: 'paymentId', description: 'ID du paiement', type: Number })
   @ApiResponse({ status: 200, description: 'Reçu trouvé' })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Reçu non trouvé pour ce paiement' })
   findByPayment(@Param('paymentId', ParseIntPipe) paymentId: number) {
     return this.receiptsService.findByPayment(paymentId);
@@ -24,6 +25,7 @@ export class ReceiptsController {
   @ApiOperation({ summary: 'Télécharger le PDF du reçu' })
   @ApiParam({ name: 'id', description: 'ID du reçu', type: Number })
   @ApiResponse({ status: 200, description: 'Fichier PDF du reçu' })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Reçu non trouvé' })
   async download(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
     const { buffer, receiptNo } = await this.receiptsService.download(id);
