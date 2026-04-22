@@ -10,6 +10,7 @@ import { RentDueModule } from './rent-due/rent-due.module';
 import { PaymentsModule } from './payments/payments.module';
 import { S3Module } from './s3/s3.module';
 import { ReceiptsModule } from './receipts/receipts.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ReceiptsModule } from './receipts/receipts.module';
     RentDueModule,
     PaymentsModule,
     ReceiptsModule,
+    UsersModule,
   ],
   controllers: [],
   providers: [],
