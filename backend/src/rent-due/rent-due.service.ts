@@ -114,7 +114,7 @@ export class RentDueService {
     this.logger.log(`Cron génération RentDue terminé : ${created} créées, ${skipped} ignorées`);
   }
 
-  // Cron : chaque nuit à 00:05 UTC qui fait passer en LATE les échéances PENDING échues
+  // Cron : chaque nuit à 00:00 UTC qui fait passer en LATE les échéances PENDING échues
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async markOverdueAsLate() {
     const now = new Date();
