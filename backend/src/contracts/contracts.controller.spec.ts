@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ContractsController } from './contracts.controller';
 import { ContractsService } from './contracts.service';
-import { DepositAction } from './dto/terminate-contract.dto';
+import { PaymentMethod } from '@generated/prisma/client';
 
 const mockContractsService = {
   create: jest.fn(),
@@ -26,7 +26,14 @@ describe('ContractsController', () => {
 
   describe('POST /contracts', () => {
     it('should call service.create with dto and user id', async () => {
-      const dto = { localId: 1, tenantId: 1, startDate: '2026-01-01', rentAmount: 500000 };
+      const dto = {
+        localId: 1,
+        tenantId: 1,
+        startDate: '2026-01-01',
+        rentAmount: 500000,
+        depositPaymentMethod: PaymentMethod.CASH,
+        depositPaymentDate: '2026-01-01',
+      };
       const user = { id: 1, email: 'admin@test.com', role: 'ADMIN' as any };
       mockContractsService.create.mockResolvedValue({ id: 1 });
 
@@ -59,24 +66,34 @@ describe('ContractsController', () => {
   });
 
   describe('PATCH /contracts/:id/terminate', () => {
-    it('should call service.terminate', async () => {
-      const dto = { endDate: '2026-12-31', depositAction: DepositAction.REFUNDED };
+    it('should call service.terminate with dto and user id', async () => {
+      const dto = {
+        endDate: '2026-12-31',
+        paymentDate: '2026-12-31',
+        paymentMethod: PaymentMethod.CASH,
+      };
+      const user = { id: 7, email: 'admin@test.com', role: 'ADMIN' as any };
       mockContractsService.terminate.mockResolvedValue({ id: 1, status: 'TERMINATED' });
 
-      const result = await controller.terminate(1, dto);
+      const result = await controller.terminate(1, dto, user);
 
-      expect(mockContractsService.terminate).toHaveBeenCalledWith(1, dto);
-      expect(result.status).toBe('TERMINATED');
+      expect(mockContractsService.terminate).toHaveBeenCalledWith(1, dto, 7);
+      expect(result?.status).toBe('TERMINATED');
     });
   });
 
   describe('PATCH /contracts/:id/cancel', () => {
-    it('should call service.cancel', async () => {
+    it('should call service.cancel with dto and user id', async () => {
+      const dto = {
+        paymentDate: '2026-04-27',
+        paymentMethod: PaymentMethod.CASH,
+      };
+      const user = { id: 7, email: 'admin@test.com', role: 'ADMIN' as any };
       mockContractsService.cancel.mockResolvedValue({ id: 1, status: 'CANCELED' });
 
-      const result = await controller.cancel(1);
+      const result = await controller.cancel(1, dto, user);
 
-      expect(mockContractsService.cancel).toHaveBeenCalledWith(1);
+      expect(mockContractsService.cancel).toHaveBeenCalledWith(1, dto, 7);
       expect(result.status).toBe('CANCELED');
     });
   });

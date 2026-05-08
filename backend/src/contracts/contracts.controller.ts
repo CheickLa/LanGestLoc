@@ -4,6 +4,7 @@ import { Role } from '@generated/prisma/client';
 import { ContractsService } from './contracts.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { TerminateContractDto } from './dto/terminate-contract.dto';
+import { CancelContractDto } from './dto/cancel-contract.dto';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { CurrentUser, Roles } from '@/auth/decorators';
 import { AuthenticatedUser } from '@/auth/strategies/jwt.strategy';
@@ -57,19 +58,25 @@ export class ContractsController {
   terminate(
     @Param('id', ParseIntPipe) id: number,
     @Body() terminateContractDto: TerminateContractDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.contractsService.terminate(id, terminateContractDto);
+    return this.contractsService.terminate(id, terminateContractDto, user.id);
   }
 
   @Patch(':id/cancel')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: "Annuler un contrat (ADMIN, uniquement si aucun paiement n'existe)" })
+  @ApiOperation({ summary: "Annuler un contrat avec remboursement de la caution (ADMIN, uniquement si aucun paiement de loyer n'existe)" })
   @ApiResponse({ status: 200, description: 'Contrat annulé avec succès' })
+  @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
-  @ApiResponse({ status: 409, description: "Impossible d'annuler : des paiements existent ou le contrat n'est pas actif" })
-  cancel(@Param('id', ParseIntPipe) id: number) {
-    return this.contractsService.cancel(id);
+  @ApiResponse({ status: 409, description: "Impossible d'annuler : paiement de loyer existant ou contrat non actif" })
+  cancel(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() cancelContractDto: CancelContractDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.contractsService.cancel(id, cancelContractDto, user.id);
   }
 }

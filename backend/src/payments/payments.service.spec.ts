@@ -3,11 +3,12 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ReceiptsService } from '@/receipts/receipts.service';
-import { ContractStatus, PaymentMethod, RentDueStatus } from '@generated/prisma/client';
+import { ContractStatus, DepositStatus, PaymentMethod, PaymentType, RentDueStatus } from '@generated/prisma/client';
 
 const mockTx = {
-  rentDue: { updateMany: jest.fn() },
+  rentDue: { updateMany: jest.fn(), update: jest.fn(), findMany: jest.fn(), count: jest.fn() },
   payment: { create: jest.fn() },
+  deposit: { findUnique: jest.fn(), update: jest.fn() },
 };
 
 const mockPrisma = {
@@ -23,6 +24,14 @@ const mockReceiptsService = {
 
 describe('PaymentsService', () => {
   let service: PaymentsService;
+
+  beforeAll(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2027-06-15'));
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -49,7 +58,7 @@ describe('PaymentsService', () => {
     { id: 2, contractId: 1, amount: 500000, status: RentDueStatus.LATE },
   ];
 
-  const activeContract = { id: 1, status: ContractStatus.ACTIVE };
+  const activeContract = { id: 1, status: ContractStatus.ACTIVE, startDate: new Date('2026-01-01') };
 
   describe('create', () => {
     it('should create a payment, update rent dues, and generate receipt', async () => {
@@ -113,9 +122,34 @@ describe('PaymentsService', () => {
 
     it('should throw BadRequestException when contract is canceled', async () => {
       mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
-      mockPrisma.contract.findUnique.mockResolvedValue({ id: 1, status: ContractStatus.CANCELED });
+      mockPrisma.contract.findUnique.mockResolvedValue({ id: 1, status: ContractStatus.CANCELED, startDate: new Date('2026-01-01') });
 
       await expect(service.create(dto, 1)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when contract is terminated', async () => {
+      mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
+      mockPrisma.contract.findUnique.mockResolvedValue({ id: 1, status: ContractStatus.TERMINATED, startDate: new Date('2026-01-01') });
+
+      await expect(service.create(dto, 1)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when paymentDate is in the future', async () => {
+      mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
+      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
+
+      await expect(
+        service.create({ ...dto, paymentDate: '2030-01-01' }, 1),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when paymentDate is before contract start', async () => {
+      mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
+      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
+
+      await expect(
+        service.create({ ...dto, paymentDate: '2025-12-01' }, 1),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw ConflictException when rent dues are already paid', async () => {
@@ -207,6 +241,98 @@ describe('PaymentsService', () => {
       mockPrisma.payment.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('createDepositHeld', () => {
+    const params = {
+      contractId: 1,
+      amount: 500000,
+      userId: 7,
+      paymentDate: new Date('2026-01-01'),
+      paymentMethod: PaymentMethod.CASH,
+    };
+
+    it('should create a DEPOSIT_HELD payment without payment lines', async () => {
+      mockTx.payment.create.mockResolvedValue({ id: 33 });
+
+      const result = await service.createDepositHeld(mockTx as any, params);
+
+      expect(mockTx.payment.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          contractId: 1,
+          type: PaymentType.DEPOSIT_HELD,
+          amount: 500000,
+          paymentDate: params.paymentDate,
+          paymentMethod: PaymentMethod.CASH,
+          createdById: 7,
+        }),
+      });
+      expect(mockTx.payment.create).toHaveBeenCalledWith({
+        data: expect.not.objectContaining({ paymentLines: expect.anything() }),
+      });
+      expect(result).toEqual({ id: 33 });
+    });
+  });
+
+  describe('createDepositRefund', () => {
+    const params = {
+      contractId: 1,
+      userId: 7,
+      paymentDate: new Date('2026-12-31'),
+      paymentMethod: PaymentMethod.CASH,
+    };
+    const held = { id: 10, status: DepositStatus.HELD, amount: 500000 };
+
+    it('should create DEPOSIT_REFUND payment and mark deposit REFUNDED', async () => {
+      mockTx.deposit.findUnique.mockResolvedValue(held);
+      mockTx.rentDue.count.mockResolvedValue(0);
+      mockTx.payment.create.mockResolvedValue({ id: 88 });
+
+      const result = await service.createDepositRefund(mockTx as any, params);
+
+      expect(mockTx.payment.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          contractId: 1,
+          type: PaymentType.DEPOSIT_REFUND,
+          amount: 500000,
+          paymentMethod: PaymentMethod.CASH,
+          createdById: 7,
+        }),
+      });
+      expect(mockTx.deposit.update).toHaveBeenCalledWith({
+        where: { contractId: 1 },
+        data: expect.objectContaining({ status: DepositStatus.REFUNDED }),
+      });
+      expect(result).toEqual({ id: 88 });
+    });
+
+    it('should throw NotFoundException when deposit does not exist', async () => {
+      mockTx.deposit.findUnique.mockResolvedValue(null);
+
+      await expect(service.createDepositRefund(mockTx as any, params)).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw ConflictException when deposit is not HELD', async () => {
+      mockTx.deposit.findUnique.mockResolvedValue({ ...held, status: DepositStatus.REFUNDED });
+
+      await expect(service.createDepositRefund(mockTx as any, params)).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw ConflictException when unpaid rent dues remain', async () => {
+      mockTx.deposit.findUnique.mockResolvedValue(held);
+      mockTx.rentDue.count.mockResolvedValue(2);
+
+      await expect(service.createDepositRefund(mockTx as any, params)).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('generateReceiptSafe', () => {
+    it('should call receiptsService.generate and swallow errors', async () => {
+      mockReceiptsService.generate.mockRejectedValue(new Error('S3 down'));
+
+      await expect(service.generateReceiptSafe(42)).resolves.toBeUndefined();
+      expect(mockReceiptsService.generate).toHaveBeenCalledWith(42);
     });
   });
 });
