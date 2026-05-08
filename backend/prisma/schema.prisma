@@ -37,6 +37,7 @@ enum PaymentMethod {
 /// Type de paiement
 enum PaymentType {
   RENT
+  DEPOSIT_HELD
   DEPOSIT_REFUND
 }
 
@@ -50,7 +51,6 @@ enum RentDueStatus {
 /// Statut de la caution
 enum DepositStatus {
   HELD
-  USED
   REFUNDED
 }
 
@@ -227,9 +227,10 @@ model PaymentLine {
 /// Caution associée à un contrat (une seule par contrat)
 /// Règles :
 ///   - Une seule caution par contrat (@unique sur contractId)
-///   - À la fin du contrat : USED (utilisée pour payer) ou REFUNDED (restituée)
-///   - usedAt et refundedAt tracent la date de l'opération
-///   - usageNote permet de décrire librement l'utilisation (ex: "Soldé janvier 2025")
+///   - Garantie pure : jamais imputée sur un loyer impayé. À la fin du contrat,
+///     elle est systématiquement restituée (REFUNDED). Si des loyers sont
+///     impayés, ils doivent être réglés AVANT la résiliation du contrat
+///   - refundedAt trace la date de restitution
 model Deposit {
   id         Int           @id @default(autoincrement())
   contractId Int           @unique
@@ -238,11 +239,6 @@ model Deposit {
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
-  /// Renseigné si status = USED
-  usedAt    DateTime?
-  usageNote String?
-
-  /// Renseigné si status = REFUNDED
   refundedAt DateTime?
 
   contract Contract @relation(fields: [contractId], references: [id])

@@ -27,8 +27,9 @@ interface ReceiptPayment {
   };
   paymentLines: ReceiptPaymentLine[];
   amount: number | { toNumber: () => number };
-  paymentMethod: string;
+  paymentMethod: string | null;
   paymentDate: Date | string;
+  type: string;
 }
 
 // ── Constantes de mise en page ──
@@ -61,6 +62,12 @@ const METHOD_LABELS: Record<string, string> = {
   CASH: 'Espèces',
   ORANGE_MONEY: 'Orange Money',
   MOBILE_MONEY: 'Mobile Money',
+};
+
+const TYPE_TITLES: Record<string, string> = {
+  RENT: 'REÇU DE PAIEMENT',
+  DEPOSIT_HELD: 'REÇU DE CAUTION',
+  DEPOSIT_REFUND: 'REMBOURSEMENT DE CAUTION',
 };
 
 // ── Helpers de formatage ──
@@ -109,14 +116,14 @@ function divider(doc: PDFKit.PDFDocument, y: number, width = 0.5) {
 
 // ── Sections du PDF ──
 
-function drawHeader(doc: PDFKit.PDFDocument, receiptNo: string) {
+function drawHeader(doc: PDFKit.PDFDocument, receiptNo: string, type: string) {
   doc.rect(0, 0, PAGE_W, HEADER_H).fill(COLOR.green700);
 
   doc
     .font(FONT.regular)
     .fontSize(8)
     .fillColor(COLOR.green300)
-    .text('REÇU DE PAIEMENT', MARGIN, 22, { characterSpacing: 1.5 });
+    .text(TYPE_TITLES[type] ?? 'REÇU DE PAIEMENT', MARGIN, 22, { characterSpacing: 1.5 });
 
   doc
     .font(FONT.bold)
@@ -185,39 +192,55 @@ function drawPaymentLines(
   doc: PDFKit.PDFDocument,
   lines: ReceiptPaymentLine[],
   totalAmount: number | { toNumber: () => number },
+  type: string,
   y: number,
 ): number {
   labelText(doc, 'Détail du paiement', MARGIN, y);
   y += 22;
 
-  // En-têtes
+  const isDepositOnly = type === 'DEPOSIT_REFUND' || type === 'DEPOSIT_HELD';
+  const leftHeader = isDepositOnly ? 'Objet' : 'Période';
   doc
     .font(FONT.regular)
     .fontSize(9)
     .fillColor(COLOR.gray400)
-    .text('Période', MARGIN, y)
+    .text(leftHeader, MARGIN, y)
     .text('Montant', 0, y, { align: 'right', width: PAGE_W - MARGIN });
   y += 12;
   divider(doc, y);
   y += 10;
 
-  // Lignes
-  for (const pl of lines) {
+  if (isDepositOnly) {
+    const objectLabel =
+      type === 'DEPOSIT_HELD' ? 'Versement de la caution' : 'Restitution de la caution';
     doc.font(FONT.regular).fontSize(11).fillColor(COLOR.black);
-    doc.text(formatMonth(pl.rentDue.month), MARGIN, y);
-    doc.text(formatAmount(pl.rentDue.amount), 0, y, { align: 'right', width: PAGE_W - MARGIN });
+    doc.text(objectLabel, MARGIN, y);
+    doc.text(formatAmount(totalAmount), 0, y, { align: 'right', width: PAGE_W - MARGIN });
     y += 22;
     divider(doc, y - 4, 0.3);
+  } else {
+    for (const pl of lines) {
+      doc.font(FONT.regular).fontSize(11).fillColor(COLOR.black);
+      doc.text(formatMonth(pl.rentDue.month), MARGIN, y);
+      doc.text(formatAmount(pl.rentDue.amount), 0, y, { align: 'right', width: PAGE_W - MARGIN });
+      y += 22;
+      divider(doc, y - 4, 0.3);
+    }
   }
 
   y += 4;
 
-  // Total
+  const totalLabel =
+    type === 'DEPOSIT_REFUND'
+      ? 'TOTAL REMBOURSÉ'
+      : type === 'DEPOSIT_HELD'
+        ? 'TOTAL ENCAISSÉ'
+        : 'TOTAL PAYÉ';
   doc
     .font(FONT.bold)
     .fontSize(9)
     .fillColor(COLOR.gray600)
-    .text('TOTAL PAYÉ', MARGIN, y + 4);
+    .text(totalLabel, MARGIN, y + 4);
   doc
     .font(FONT.bold)
     .fontSize(18)
@@ -231,18 +254,19 @@ function drawPaymentLines(
 
 function drawPaymentInfo(
   doc: PDFKit.PDFDocument,
-  method: string,
+  method: string | null,
   date: Date | string,
   y: number,
 ) {
   doc.rect(MARGIN, y, CONTENT_W, 50).fill(COLOR.gray50).stroke();
 
   labelText(doc, 'Méthode de paiement', MARGIN + 12, y + 8);
+  const methodLabel = method ? (METHOD_LABELS[method] ?? method) : '—';
   doc
     .font(FONT.bold)
     .fontSize(11)
     .fillColor(COLOR.black)
-    .text(METHOD_LABELS[method] ?? method, MARGIN + 12, y + 20);
+    .text(methodLabel, MARGIN + 12, y + 20);
 
   labelText(doc, 'Date du paiement', MARGIN, y + 8, {
     align: 'right',
@@ -300,11 +324,11 @@ export function buildReceiptPdf(
 
     const { tenant, local } = payment.contract;
 
-    drawHeader(doc, receiptNo);
+    drawHeader(doc, receiptNo, payment.type);
     let y = HEADER_H + 28;
     y = drawParties(doc, bailleur, tenant, y);
     y = drawLocal(doc, local, lieu, y);
-    y = drawPaymentLines(doc, payment.paymentLines, payment.amount, y);
+    y = drawPaymentLines(doc, payment.paymentLines, payment.amount, payment.type, y);
     drawPaymentInfo(doc, payment.paymentMethod, payment.paymentDate, y);
     drawFooter(doc);
 

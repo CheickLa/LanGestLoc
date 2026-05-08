@@ -8,7 +8,14 @@ import {
 import { PrismaService } from '@/prisma/prisma.service';
 import { ReceiptsService } from '@/receipts/receipts.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
-import { ContractStatus, PaymentType, RentDueStatus } from '@generated/prisma/client';
+import {
+  ContractStatus,
+  DepositStatus,
+  PaymentMethod,
+  PaymentType,
+  Prisma,
+  RentDueStatus,
+} from '@generated/prisma/client';
 
 @Injectable()
 export class PaymentsService {
@@ -43,11 +50,13 @@ export class PaymentsService {
     }
     const contractId = contractIds[0];
 
-    // Vérif que le contrat n'est pas CANCELED
+    // Vérif que le contrat est ACTIVE (pas de paiement sur TERMINATED ou CANCELED)
     const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
     if (!contract) throw new NotFoundException(`Contrat #${contractId} non trouvé`);
-    if (contract.status === ContractStatus.CANCELED) {
-      throw new BadRequestException('Impossible de payer sur un contrat annulé');
+    if (contract.status !== ContractStatus.ACTIVE) {
+      throw new BadRequestException(
+        `Impossible de payer sur un contrat ${contract.status.toLowerCase()}`,
+      );
     }
 
     // Vérif que toutes les RentDue sont PENDING ou LATE (pas déjà PAID)
@@ -55,6 +64,16 @@ export class PaymentsService {
     if (alreadyPaid.length > 0) {
       throw new ConflictException(
         `Les échéances suivantes sont déjà soldées : ${alreadyPaid.map((r) => r.id).join(', ')}`,
+      );
+    }
+
+    const paymentDateObj = new Date(paymentDate);
+    if (paymentDateObj.getTime() > Date.now()) {
+      throw new BadRequestException('La date de paiement ne peut pas être dans le futur');
+    }
+    if (paymentDateObj < contract.startDate) {
+      throw new BadRequestException(
+        'La date de paiement ne peut pas être antérieure au début du contrat',
       );
     }
 
@@ -73,7 +92,7 @@ export class PaymentsService {
             contractId,
             type: PaymentType.RENT,
             amount,
-            paymentDate: new Date(paymentDate),
+            paymentDate: paymentDateObj,
             paymentMethod,
             createdById: userId,
             paymentLines: {
@@ -104,6 +123,101 @@ export class PaymentsService {
         );
       }
       throw error;
+    }
+  }
+
+  /**
+   * Crée un Payment de type DEPOSIT_HELD : trace le versement de la caution
+   * par le locataire à la création du contrat. Pas de PaymentLine (pas de
+   * RentDue associée). Conçu pour être appelé dans une transaction parente
+   */
+  async createDepositHeld(
+    tx: Prisma.TransactionClient,
+    params: {
+      contractId: number;
+      amount: number;
+      userId: number;
+      paymentDate: Date;
+      paymentMethod: PaymentMethod;
+    },
+  ) {
+    const { contractId, amount, userId, paymentDate, paymentMethod } = params;
+
+    return tx.payment.create({
+      data: {
+        contractId,
+        type: PaymentType.DEPOSIT_HELD,
+        amount,
+        paymentDate,
+        paymentMethod,
+        createdById: userId,
+      },
+    });
+  }
+
+  /**
+   * Crée un Payment de type DEPOSIT_REFUND (restitution de la caution au
+   * locataire). Pas de PaymentLine (aucune RentDue associée). Conçu pour être
+   * appelé dans une transaction parente.
+   */
+  async createDepositRefund(
+    tx: Prisma.TransactionClient,
+    params: {
+      contractId: number;
+      userId: number;
+      paymentDate: Date;
+      paymentMethod: PaymentMethod;
+    },
+  ) {
+    const { contractId, userId, paymentDate, paymentMethod } = params;
+
+    const deposit = await tx.deposit.findUnique({ where: { contractId } });
+    if (!deposit) throw new NotFoundException('Aucune caution sur ce contrat');
+    if (deposit.status !== DepositStatus.HELD) {
+      throw new ConflictException('La caution a déjà été traitée');
+    }
+
+    const unpaidCount = await tx.rentDue.count({
+      where: {
+        contractId,
+        status: { in: [RentDueStatus.PENDING, RentDueStatus.LATE] },
+      },
+    });
+    if (unpaidCount > 0) {
+      throw new ConflictException(
+        `Impossible de rembourser la caution : ${unpaidCount} échéance(s) impayée(s) sur le contrat`,
+      );
+    }
+
+    const payment = await tx.payment.create({
+      data: {
+        contractId,
+        type: PaymentType.DEPOSIT_REFUND,
+        amount: deposit.amount,
+        paymentDate,
+        paymentMethod,
+        createdById: userId,
+      },
+    });
+
+    await tx.deposit.update({
+      where: { contractId },
+      data: { status: DepositStatus.REFUNDED, refundedAt: paymentDate },
+    });
+
+    return payment;
+  }
+
+  /**
+   * Déclenche la génération du reçu PDF après commit d'une transaction
+   * parente. Les erreurs sont loguées mais n'échouent pas : le reçu pourra
+   * être regénéré manuellement
+   */
+  async generateReceiptSafe(paymentId: number) {
+    try {
+      await this.receiptsService.generate(paymentId);
+    } catch (error) {
+      this.logger.error(`Échec génération reçu pour paiement #${paymentId}`, error);
     }
   }
 

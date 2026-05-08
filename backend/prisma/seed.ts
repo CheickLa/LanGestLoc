@@ -491,6 +491,110 @@ async function main() {
 
   const allPayments: Payment[] = [];
 
+  // 8.a DEPOSIT_HELD : 1 paiement par contrat ayant une caution (créé à la signature)
+
+  const depositHeld1 = await prisma.payment.create({
+    data: {
+      contractId: contract1.id,
+      type: PaymentType.DEPOSIT_HELD,
+      amount: 400_000,
+      paymentDate: firstOfMonth(2025, 7),
+      paymentMethod: PaymentMethod.CASH,
+      createdById: admin.id,
+    },
+  });
+  allPayments.push(depositHeld1);
+
+  const depositHeld2 = await prisma.payment.create({
+    data: {
+      contractId: contract2.id,
+      type: PaymentType.DEPOSIT_HELD,
+      amount: 500_000,
+      paymentDate: firstOfMonth(2026, 1),
+      paymentMethod: PaymentMethod.CASH,
+      createdById: admin.id,
+    },
+  });
+  allPayments.push(depositHeld2);
+
+  const depositHeld3 = await prisma.payment.create({
+    data: {
+      contractId: contract3.id,
+      type: PaymentType.DEPOSIT_HELD,
+      amount: 600_000,
+      paymentDate: firstOfMonth(2025, 10),
+      paymentMethod: PaymentMethod.CASH,
+      createdById: admin.id,
+    },
+  });
+  allPayments.push(depositHeld3);
+
+  const depositHeld4 = await prisma.payment.create({
+    data: {
+      contractId: contract4.id,
+      type: PaymentType.DEPOSIT_HELD,
+      amount: 750_000,
+      paymentDate: firstOfMonth(2026, 2),
+      paymentMethod: PaymentMethod.ORANGE_MONEY,
+      createdById: admin.id,
+    },
+  });
+  allPayments.push(depositHeld4);
+
+  const depositHeld5 = await prisma.payment.create({
+    data: {
+      contractId: contract5.id,
+      type: PaymentType.DEPOSIT_HELD,
+      amount: 350_000,
+      paymentDate: firstOfMonth(2026, 1),
+      paymentMethod: PaymentMethod.MOBILE_MONEY,
+      createdById: user.id,
+    },
+  });
+  allPayments.push(depositHeld5);
+
+  const depositHeld6 = await prisma.payment.create({
+    data: {
+      contractId: contract6.id,
+      type: PaymentType.DEPOSIT_HELD,
+      amount: 450_000,
+      paymentDate: firstOfMonth(2026, 3),
+      paymentMethod: PaymentMethod.CASH,
+      createdById: admin.id,
+    },
+  });
+  allPayments.push(depositHeld6);
+
+  // 8.b DEPOSIT_REFUND : contrats dont la caution est REFUNDED (1 et 3)
+
+  // Contrat 1 : remboursement à la résiliation (5 jan 2026, cohérent avec deposit.refundedAt)
+  const depositRefund1 = await prisma.payment.create({
+    data: {
+      contractId: contract1.id,
+      type: PaymentType.DEPOSIT_REFUND,
+      amount: 400_000,
+      paymentDate: new Date(Date.UTC(2026, 0, 5)),
+      paymentMethod: PaymentMethod.CASH,
+      createdById: admin.id,
+    },
+  });
+  allPayments.push(depositRefund1);
+
+  // Contrat 3 : remboursement à l'annulation (15 oct 2025, cohérent avec deposit.refundedAt)
+  const depositRefund3 = await prisma.payment.create({
+    data: {
+      contractId: contract3.id,
+      type: PaymentType.DEPOSIT_REFUND,
+      amount: 600_000,
+      paymentDate: new Date(Date.UTC(2025, 9, 15)),
+      paymentMethod: PaymentMethod.CASH,
+      createdById: admin.id,
+    },
+  });
+  allPayments.push(depositRefund3);
+
+  // 8.c RENT : paiements de loyer
+
   // Contrat 1 : 1 paiement multi-mois (6 mois d'un coup)
   const pay1 = await prisma.payment.create({
     data: {
@@ -576,7 +680,7 @@ async function main() {
   });
   allPayments.push(pay6);
 
-  console.log(`✓ ${allPayments.length} paiements`);
+  console.log(`✓ ${allPayments.length} paiements (6 RENT, 6 DEPOSIT_HELD, 2 DEPOSIT_REFUND)`);
 
   // ── 9. Receipts ──────────────────────────────────────────────────────────
 
@@ -599,12 +703,12 @@ async function main() {
   // ── Résumé ───────────────────────────────────────────────────────────────
 
   console.log('\n── Seed terminé ──');
-  console.log('  Contrat 1 (Boutique 1, Ousmane)    : juil–déc 2025, TERMINATED, tout payé en 1 fois, caution REFUNDED');
-  console.log('  Contrat 2 (Boutique 1, Ibrahima)   : jan–avr 2026, ACTIVE, augmentation mars, 3 payés, avr PENDING');
-  console.log('  Contrat 3 (Boutique 2, Aissatou)   : oct 2025, CANCELED, aucun paiement, caution REFUNDED');
-  console.log('  Contrat 4 (Boutique 2, Fatoumata)  : fév–avr 2026, ACTIVE, fév payé, mars LATE, avr PENDING');
-  console.log('  Contrat 5 (Boutique 3, Mamadou S.) : jan–avr 2026, ACTIVE, jan+fév payés multi-mois, mars-avr PENDING');
-  console.log('  Contrat 6 (Boutique 4, Ousmane)    : mars–avr 2026, ACTIVE, mars payé, avr PENDING');
+  console.log('  Contrat 1 (Boutique 1, Ousmane)    : juil–déc 2025, TERMINATED, caution HELD→REFUNDED, loyers payés en 1 fois');
+  console.log('  Contrat 2 (Boutique 1, Ibrahima)   : jan–avr 2026, ACTIVE, caution HELD, augmentation mars, 3 loyers payés, avr PENDING');
+  console.log('  Contrat 3 (Boutique 2, Aissatou)   : oct 2025, CANCELED, caution HELD→REFUNDED, aucun loyer');
+  console.log('  Contrat 4 (Boutique 2, Fatoumata)  : fév–avr 2026, ACTIVE, caution HELD, fév payé, mars LATE, avr PENDING');
+  console.log('  Contrat 5 (Boutique 3, Mamadou S.) : jan–avr 2026, ACTIVE, caution HELD, jan+fév payés multi-mois, mars-avr PENDING');
+  console.log('  Contrat 6 (Boutique 4, Ousmane)    : mars–avr 2026, ACTIVE, caution HELD, mars payé, avr PENDING');
 }
 
 main()

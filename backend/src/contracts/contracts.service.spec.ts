@@ -1,31 +1,48 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ContractsService } from './contracts.service';
 import { PrismaService } from '@/prisma/prisma.service';
-import { ContractStatus, DepositStatus } from '@generated/prisma/client';
-import { DepositAction } from './dto/terminate-contract.dto';
+import { PaymentsService } from '@/payments/payments.service';
+import { ContractStatus, PaymentMethod, PaymentType, RentDueStatus } from '@generated/prisma/client';
 
 const mockTx = {
-  contract: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn() },
+  contract: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn() },
   rent: { create: jest.fn() },
-  deposit: { create: jest.fn(), update: jest.fn(), delete: jest.fn(), findUnique: jest.fn() },
+  rentDue: { deleteMany: jest.fn() },
+  deposit: { create: jest.fn(), update: jest.fn(), delete: jest.fn(), deleteMany: jest.fn(), findUnique: jest.fn() },
 };
 
 const mockPrisma = {
   local: { findUnique: jest.fn() },
   tenant: { findUnique: jest.fn() },
-  contract: { findFirst: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
+  contract: { findMany: jest.fn(), findUnique: jest.fn() },
+  rentDue: { count: jest.fn() },
   $transaction: jest.fn((cb) => cb(mockTx)),
+};
+
+const mockPaymentsService = {
+  createDepositHeld: jest.fn(),
+  createDepositRefund: jest.fn(),
+  generateReceiptSafe: jest.fn(),
 };
 
 describe('ContractsService', () => {
   let service: ContractsService;
+
+  beforeAll(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2027-06-15'));
+  });
+
+  afterAll(() => {
+    jest.useRealTimers();
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ContractsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: PaymentsService, useValue: mockPaymentsService },
       ],
     }).compile();
 
@@ -39,16 +56,18 @@ describe('ContractsService', () => {
     tenantId: 1,
     startDate: '2026-01-01',
     rentAmount: 500000,
-    depositAmount: 200000,
+    depositPaymentMethod: PaymentMethod.CASH,
+    depositPaymentDate: '2026-01-01',
   };
 
   describe('create', () => {
-    it('should create a contract with rent and deposit', async () => {
+    it('should create a contract with rent, deposit, and DEPOSIT_HELD payment', async () => {
       mockPrisma.local.findUnique.mockResolvedValue({ id: 1 });
       mockPrisma.tenant.findUnique.mockResolvedValue({ id: 1 });
-      mockPrisma.contract.findFirst.mockResolvedValue(null);
+      mockTx.contract.findFirst.mockResolvedValue(null);
       const contract = { id: 1, localId: 1, tenantId: 1, status: ContractStatus.ACTIVE };
       mockTx.contract.create.mockResolvedValue(contract);
+      mockPaymentsService.createDepositHeld.mockResolvedValue({ id: 55 });
 
       const result = await service.create(createDto, 1);
 
@@ -57,19 +76,37 @@ describe('ContractsService', () => {
         data: { contractId: 1, amount: 500000, effectiveFrom: new Date('2026-01-01') },
       });
       expect(mockTx.deposit.create).toHaveBeenCalledWith({
-        data: { contractId: 1, amount: 200000 },
+        data: { contractId: 1, amount: 500000 },
       });
+      expect(mockPaymentsService.createDepositHeld).toHaveBeenCalledWith(
+        mockTx,
+        expect.objectContaining({
+          contractId: 1,
+          amount: 500000,
+          userId: 1,
+          paymentDate: new Date('2026-01-01'),
+          paymentMethod: PaymentMethod.CASH,
+        }),
+      );
+      expect(mockPaymentsService.generateReceiptSafe).toHaveBeenCalledWith(55);
     });
 
-    it('should create a contract without deposit when not provided', async () => {
+    it('should throw BadRequestException when endDate is not after startDate', async () => {
+      await expect(
+        service.create({ ...createDto, endDate: '2026-01-01' }, 1),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.create({ ...createDto, endDate: '2025-12-31' }, 1),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when depositPaymentDate is in the future', async () => {
       mockPrisma.local.findUnique.mockResolvedValue({ id: 1 });
       mockPrisma.tenant.findUnique.mockResolvedValue({ id: 1 });
-      mockPrisma.contract.findFirst.mockResolvedValue(null);
-      mockTx.contract.create.mockResolvedValue({ id: 1 });
 
-      await service.create({ ...createDto, depositAmount: undefined }, 1);
-
-      expect(mockTx.deposit.create).not.toHaveBeenCalled();
+      await expect(
+        service.create({ ...createDto, depositPaymentDate: '2030-01-01' }, 1),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw NotFoundException when local does not exist', async () => {
@@ -88,7 +125,15 @@ describe('ContractsService', () => {
     it('should throw ConflictException when local already has an active contract', async () => {
       mockPrisma.local.findUnique.mockResolvedValue({ id: 1 });
       mockPrisma.tenant.findUnique.mockResolvedValue({ id: 1 });
-      mockPrisma.contract.findFirst.mockResolvedValue({ id: 99 });
+      mockTx.contract.findFirst.mockResolvedValue({ id: 99 });
+
+      await expect(service.create(createDto, 1)).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw ConflictException on Prisma P2002 (concurrent active contract)', async () => {
+      mockPrisma.local.findUnique.mockResolvedValue({ id: 1 });
+      mockPrisma.tenant.findUnique.mockResolvedValue({ id: 1 });
+      mockPrisma.$transaction.mockRejectedValueOnce({ code: 'P2002' });
 
       await expect(service.create(createDto, 1)).rejects.toThrow(ConflictException);
     });
@@ -138,102 +183,210 @@ describe('ContractsService', () => {
   });
 
   describe('terminate', () => {
-    const terminateDto = { endDate: '2026-12-31', depositAction: DepositAction.REFUNDED };
-    const contract = { id: 1, status: ContractStatus.ACTIVE, deposit: { id: 1 } };
+    const refundDto = {
+      endDate: '2026-12-31',
+      paymentDate: '2026-12-31',
+      paymentMethod: PaymentMethod.CASH,
+    };
+    const contract = {
+      id: 1,
+      status: ContractStatus.ACTIVE,
+      startDate: new Date('2026-01-01'),
+      deposit: { id: 1 },
+    };
 
-    it('should terminate a contract and refund deposit', async () => {
+    it('should terminate a contract, clean future rent dues and refund deposit', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue(contract);
+      mockPrisma.rentDue.count.mockResolvedValue(0);
       const terminated = { id: 1, status: ContractStatus.TERMINATED };
       mockTx.contract.findUnique.mockResolvedValue(terminated);
+      mockPaymentsService.createDepositRefund.mockResolvedValue({ id: 42 });
 
-      const result = await service.terminate(1, terminateDto);
+      const result = await service.terminate(1, refundDto, 7);
 
+      expect(mockTx.rentDue.deleteMany).toHaveBeenCalledWith({
+        where: {
+          contractId: 1,
+          month: { gt: new Date('2026-12-31') },
+          status: { in: [RentDueStatus.PENDING, RentDueStatus.LATE] },
+        },
+      });
       expect(mockTx.contract.update).toHaveBeenCalledWith({
         where: { id: 1 },
         data: { status: ContractStatus.TERMINATED, endDate: new Date('2026-12-31') },
       });
-      expect(mockTx.deposit.update).toHaveBeenCalledWith(
+      expect(mockPaymentsService.createDepositRefund).toHaveBeenCalledWith(
+        mockTx,
         expect.objectContaining({
-          data: expect.objectContaining({ status: DepositStatus.REFUNDED }),
+          contractId: 1,
+          userId: 7,
+          paymentMethod: PaymentMethod.CASH,
         }),
       );
+      expect(mockPaymentsService.generateReceiptSafe).toHaveBeenCalledWith(42);
       expect(result).toEqual(terminated);
     });
 
-    it('should terminate and mark deposit as USED with usageNote', async () => {
+    it('should throw ConflictException when unpaid rent dues remain before endDate', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue(contract);
-      mockTx.contract.findUnique.mockResolvedValue({ id: 1 });
+      mockPrisma.rentDue.count.mockResolvedValue(2);
 
-      await service.terminate(1, {
-        endDate: '2026-12-31',
-        depositAction: DepositAction.USED,
-        usageNote: 'Dernier mois',
-      });
-
-      expect(mockTx.deposit.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ status: DepositStatus.USED, usageNote: 'Dernier mois' }),
-        }),
-      );
+      await expect(service.terminate(1, refundDto, 7)).rejects.toThrow(ConflictException);
+      expect(mockPaymentsService.createDepositRefund).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundException when contract does not exist', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue(null);
 
-      await expect(service.terminate(999, terminateDto)).rejects.toThrow(NotFoundException);
+      await expect(service.terminate(999, refundDto, 1)).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ConflictException when contract is not active', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({ id: 1, status: ContractStatus.TERMINATED });
+      mockPrisma.contract.findUnique.mockResolvedValue({ id: 1, status: ContractStatus.TERMINATED, deposit: { id: 1 } });
 
-      await expect(service.terminate(1, terminateDto)).rejects.toThrow(ConflictException);
+      await expect(service.terminate(1, refundDto, 1)).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw ConflictException when contract has no deposit', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({ id: 1, status: ContractStatus.ACTIVE, deposit: null });
+
+      await expect(service.terminate(1, refundDto, 1)).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw BadRequestException when endDate is before contract startDate', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue(contract);
+
+      await expect(
+        service.terminate(1, { ...refundDto, endDate: '2025-06-01' }, 1),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when endDate is in the future', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue(contract);
+
+      await expect(
+        service.terminate(1, { ...refundDto, endDate: '2030-01-01', paymentDate: '2030-01-01' }, 1),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when refund paymentDate is in the future', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue(contract);
+
+      await expect(
+        service.terminate(1, { ...refundDto, paymentDate: '2030-01-01' }, 1),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when refund paymentDate is before contract start', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue(contract);
+
+      await expect(
+        service.terminate(1, { ...refundDto, paymentDate: '2025-06-01' }, 1),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('cancel', () => {
-    it('should cancel a contract and delete deposit', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
-        id: 1, status: ContractStatus.ACTIVE, payments: [],
-      });
-      mockTx.deposit.findUnique.mockResolvedValue({ id: 1 });
+    const cancelDto = {
+      paymentDate: '2026-04-27',
+      paymentMethod: PaymentMethod.CASH,
+    };
+
+    const activeContractWithDepositOnly = {
+      id: 1,
+      status: ContractStatus.ACTIVE,
+      startDate: new Date('2026-01-01'),
+      deposit: { id: 10 },
+      payments: [{ id: 5, type: PaymentType.DEPOSIT_HELD }],
+    };
+
+    it('should cancel a contract, clean unpaid rent dues and refund deposit', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue(activeContractWithDepositOnly);
+      mockPaymentsService.createDepositRefund.mockResolvedValue({ id: 99 });
       mockTx.contract.update.mockResolvedValue({ id: 1, status: ContractStatus.CANCELED });
 
-      const result = await service.cancel(1);
+      const result = await service.cancel(1, cancelDto, 7);
 
-      expect(mockTx.deposit.delete).toHaveBeenCalledWith({ where: { contractId: 1 } });
+      expect(mockTx.rentDue.deleteMany).toHaveBeenCalledWith({
+        where: {
+          contractId: 1,
+          status: { in: [RentDueStatus.PENDING, RentDueStatus.LATE] },
+        },
+      });
+      expect(mockPaymentsService.createDepositRefund).toHaveBeenCalledWith(
+        mockTx,
+        expect.objectContaining({
+          contractId: 1,
+          userId: 7,
+          paymentDate: new Date('2026-04-27'),
+          paymentMethod: PaymentMethod.CASH,
+        }),
+      );
+      expect(mockTx.contract.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { status: ContractStatus.CANCELED },
+      });
+      expect(mockPaymentsService.generateReceiptSafe).toHaveBeenCalledWith(99);
       expect(result.status).toBe(ContractStatus.CANCELED);
-    });
-
-    it('should cancel without deleting deposit if none exists', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
-        id: 1, status: ContractStatus.ACTIVE, payments: [],
-      });
-      mockTx.deposit.findUnique.mockResolvedValue(null);
-      mockTx.contract.update.mockResolvedValue({ id: 1, status: ContractStatus.CANCELED });
-
-      await service.cancel(1);
-
-      expect(mockTx.deposit.delete).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundException when contract does not exist', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue(null);
 
-      await expect(service.cancel(999)).rejects.toThrow(NotFoundException);
+      await expect(service.cancel(999, cancelDto, 1)).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ConflictException when contract is not active', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({ id: 1, status: ContractStatus.CANCELED, payments: [] });
-
-      await expect(service.cancel(1)).rejects.toThrow(ConflictException);
-    });
-
-    it('should throw ConflictException when payments exist', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue({
-        id: 1, status: ContractStatus.ACTIVE, payments: [{ id: 1 }],
+        id: 1,
+        status: ContractStatus.CANCELED,
+        deposit: { id: 10 },
+        payments: [],
       });
 
-      await expect(service.cancel(1)).rejects.toThrow(ConflictException);
+      await expect(service.cancel(1, cancelDto, 1)).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw ConflictException when contract has no deposit', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        id: 1,
+        status: ContractStatus.ACTIVE,
+        deposit: null,
+        payments: [],
+      });
+
+      await expect(service.cancel(1, cancelDto, 1)).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw ConflictException when rent payments exist', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        id: 1,
+        status: ContractStatus.ACTIVE,
+        startDate: new Date('2026-01-01'),
+        deposit: { id: 10 },
+        payments: [
+          { id: 5, type: PaymentType.DEPOSIT_HELD },
+          { id: 6, type: PaymentType.RENT },
+        ],
+      });
+
+      await expect(service.cancel(1, cancelDto, 1)).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw BadRequestException when refund paymentDate is in the future', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue(activeContractWithDepositOnly);
+
+      await expect(
+        service.cancel(1, { ...cancelDto, paymentDate: '2030-01-01' }, 1),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when refund paymentDate is before contract start', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue(activeContractWithDepositOnly);
+
+      await expect(
+        service.cancel(1, { ...cancelDto, paymentDate: '2025-06-01' }, 1),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });
