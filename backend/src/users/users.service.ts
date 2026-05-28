@@ -8,6 +8,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { Prisma, Role } from '@generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
+import { PaginationDto } from '@/common/dto/pagination.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
@@ -84,11 +85,18 @@ export class UsersService {
     return { message: 'Mot de passe mis à jour' };
   }
 
-  findAll() {
-    return this.prisma.user.findMany({
-      select: userSafeSelect,
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll({ skip, take }: PaginationDto) {
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        skip,
+        take,
+        select: userSafeSelect,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.user.count(),
+    ]);
+
+    return { items, total, skip, take };
   }
 
   async findOne(id: number) {

@@ -62,17 +62,22 @@ describe('UsersController', () => {
   });
 
   describe('GET /users', () => {
-    it('should call service.findAll', async () => {
-      const users = [
-        { id: 1, name: 'Admin', email: 'a@test.com', role: Role.ADMIN },
-        { id: 2, name: 'User', email: 'u@test.com', role: Role.USER },
-      ];
-      mockUsersService.findAll.mockResolvedValue(users);
+    it('should call service.findAll with pagination', async () => {
+      const paginated = {
+        items: [
+          { id: 1, name: 'Admin', email: 'a@test.com', role: Role.ADMIN },
+          { id: 2, name: 'User', email: 'u@test.com', role: Role.USER },
+        ],
+        total: 2,
+        skip: 0,
+        take: 20,
+      };
+      mockUsersService.findAll.mockResolvedValue(paginated);
 
-      const result = await controller.findAll();
+      const result = await controller.findAll({ skip: 0, take: 20 });
 
-      expect(mockUsersService.findAll).toHaveBeenCalled();
-      expect(result).toEqual(users);
+      expect(mockUsersService.findAll).toHaveBeenCalledWith({ skip: 0, take: 20 });
+      expect(result).toEqual(paginated);
     });
   });
 
