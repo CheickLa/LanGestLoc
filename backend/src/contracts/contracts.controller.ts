@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Patch, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/client';
 import { ContractsService } from './contracts.service';
+import { PaginationDto } from '@/common/dto/pagination.dto';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { TerminateContractDto } from './dto/terminate-contract.dto';
 import { CancelContractDto } from './dto/cancel-contract.dto';
@@ -31,10 +32,10 @@ export class ContractsController {
 
   @Get()
   @ApiOperation({ summary: 'Récupérer tous les contrats' })
-  @ApiResponse({ status: 200, description: 'Liste des contrats' })
+  @ApiResponse({ status: 200, description: 'Liste paginée des contrats' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  findAll() {
-    return this.contractsService.findAll();
+  findAll(@Query() pagination: PaginationDto) {
+    return this.contractsService.findAll(pagination);
   }
 
   @Get(':id')

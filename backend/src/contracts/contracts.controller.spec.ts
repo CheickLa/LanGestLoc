@@ -45,12 +45,14 @@ describe('ContractsController', () => {
   });
 
   describe('GET /contracts', () => {
-    it('should return all contracts', async () => {
-      mockContractsService.findAll.mockResolvedValue([{ id: 1 }]);
+    it('should return paginated contracts', async () => {
+      const paginated = { items: [{ id: 1 }], total: 1, skip: 0, take: 20 };
+      mockContractsService.findAll.mockResolvedValue(paginated);
 
-      const result = await controller.findAll();
+      const result = await controller.findAll({ skip: 0, take: 20 });
 
-      expect(result).toEqual([{ id: 1 }]);
+      expect(mockContractsService.findAll).toHaveBeenCalledWith({ skip: 0, take: 20 });
+      expect(result).toEqual(paginated);
     });
   });
 
