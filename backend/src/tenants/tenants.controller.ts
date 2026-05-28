@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/client';
 import { TenantsService } from './tenants.service';
+import { PaginationDto } from '@/common/dto/pagination.dto';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
@@ -28,10 +29,10 @@ export class TenantsController {
 
   @Get()
   @ApiOperation({ summary: 'Récupérer tous les locataires' })
-  @ApiResponse({ status: 200, description: 'Retourne la liste de tous les locataires.' })
+  @ApiResponse({ status: 200, description: 'Retourne la liste paginée des locataires.' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  findAll() {
-    return this.tenantsService.findAll();
+  findAll(@Query() pagination: PaginationDto) {
+    return this.tenantsService.findAll(pagination);
   }
 
   @Get(':id')
