@@ -14,8 +14,8 @@ const mockTx = {
 const mockPrisma = {
   rentDue: { findMany: jest.fn() },
   contract: { findUnique: jest.fn() },
-  payment: { findMany: jest.fn(), findUnique: jest.fn() },
-  $transaction: jest.fn((cb) => cb(mockTx)),
+  payment: { findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
+  $transaction: jest.fn((arg) => (Array.isArray(arg) ? Promise.all(arg) : arg(mockTx))),
 };
 
 const mockReceiptsService = {
@@ -44,7 +44,7 @@ describe('PaymentsService', () => {
 
     service = module.get<PaymentsService>(PaymentsService);
     jest.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((cb) => cb(mockTx));
+    mockPrisma.$transaction.mockImplementation((arg) => (Array.isArray(arg) ? Promise.all(arg) : arg(mockTx)));
   });
 
   const dto = {
@@ -184,14 +184,17 @@ describe('PaymentsService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all payments with relations', async () => {
+    it('should return paginated payments with relations', async () => {
       const payments = [{ id: 1, amount: 1000000 }];
       mockPrisma.payment.findMany.mockResolvedValue(payments);
+      mockPrisma.payment.count.mockResolvedValue(1);
 
-      const result = await service.findAll();
+      const result = await service.findAll({ skip: 0, take: 20 });
 
-      expect(result).toEqual(payments);
+      expect(result).toEqual({ items: payments, total: 1, skip: 0, take: 20 });
       expect(mockPrisma.payment.findMany).toHaveBeenCalledWith({
+        skip: 0,
+        take: 20,
         include: {
           paymentLines: { include: { rentDue: true } },
           contract: { include: { tenant: true, local: true } },

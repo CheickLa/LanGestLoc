@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ReceiptsService } from '@/receipts/receipts.service';
+import { PaginationDto } from '@/common/dto/pagination.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import {
   ContractStatus,
@@ -221,14 +222,21 @@ export class PaymentsService {
     }
   }
 
-  async findAll() {
-    return this.prisma.payment.findMany({
-      include: {
-        paymentLines: { include: { rentDue: true } },
-        contract: { include: { tenant: true, local: true } },
-      },
-      orderBy: { paymentDate: 'desc' },
-    });
+  async findAll({ skip, take }: PaginationDto) {
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.payment.findMany({
+        skip,
+        take,
+        include: {
+          paymentLines: { include: { rentDue: true } },
+          contract: { include: { tenant: true, local: true } },
+        },
+        orderBy: { paymentDate: 'desc' },
+      }),
+      this.prisma.payment.count(),
+    ]);
+
+    return { items, total, skip, take };
   }
 
   async findAllByContract(contractId: number) {
