@@ -3,14 +3,16 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { TenantsService } from './tenants.service';
 import { PrismaService } from '@/prisma/prisma.service';
 
-const mockPrisma = {
+const mockPrisma: any = {
   tenant: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    count: jest.fn(),
   },
+  $transaction: jest.fn((arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma))),
 };
 
 describe('TenantsService', () => {
@@ -77,12 +79,13 @@ describe('TenantsService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all tenants', async () => {
+    it('should return paginated tenants', async () => {
       mockPrisma.tenant.findMany.mockResolvedValue([tenantEntity]);
+      mockPrisma.tenant.count.mockResolvedValue(1);
 
-      const result = await service.findAll();
+      const result = await service.findAll({ skip: 0, take: 20 });
 
-      expect(result).toEqual([tenantEntity]);
+      expect(result).toEqual({ items: [tenantEntity], total: 1, skip: 0, take: 20 });
     });
   });
 

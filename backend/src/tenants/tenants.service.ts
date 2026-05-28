@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { PrismaService } from '@/prisma/prisma.service';
+import { PaginationDto } from '@/common/dto/pagination.dto';
 
 @Injectable()
 export class TenantsService {
@@ -33,8 +34,13 @@ export class TenantsService {
     });
   }
 
-  findAll() {
-    return this.prisma.tenant.findMany();
+  async findAll({ skip, take }: PaginationDto) {
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.tenant.findMany({ skip, take }),
+      this.prisma.tenant.count(),
+    ]);
+
+    return { items, total, skip, take };
   }
 
   async findOne(id: number) {

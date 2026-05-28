@@ -36,13 +36,14 @@ describe('TenantsController', () => {
   });
 
   describe('GET /tenants', () => {
-    it('should return all tenants', async () => {
-      const tenants = [{ id: 1, name: 'Jean' }];
-      mockTenantsService.findAll.mockResolvedValue(tenants);
+    it('should return paginated tenants', async () => {
+      const paginated = { items: [{ id: 1, name: 'Jean' }], total: 1, skip: 0, take: 20 };
+      mockTenantsService.findAll.mockResolvedValue(paginated);
 
-      const result = await controller.findAll();
+      const result = await controller.findAll({ skip: 0, take: 20 });
 
-      expect(result).toEqual(tenants);
+      expect(mockTenantsService.findAll).toHaveBeenCalledWith({ skip: 0, take: 20 });
+      expect(result).toEqual(paginated);
     });
   });
 
