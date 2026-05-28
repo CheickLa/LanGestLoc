@@ -15,9 +15,9 @@ const mockTx = {
 const mockPrisma = {
   local: { findUnique: jest.fn() },
   tenant: { findUnique: jest.fn() },
-  contract: { findMany: jest.fn(), findUnique: jest.fn() },
+  contract: { findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
   rentDue: { count: jest.fn() },
-  $transaction: jest.fn((cb) => cb(mockTx)),
+  $transaction: jest.fn((arg) => (Array.isArray(arg) ? Promise.all(arg) : arg(mockTx))),
 };
 
 const mockPaymentsService = {
@@ -48,7 +48,7 @@ describe('ContractsService', () => {
 
     service = module.get<ContractsService>(ContractsService);
     jest.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((cb) => cb(mockTx));
+    mockPrisma.$transaction.mockImplementation((arg) => (Array.isArray(arg) ? Promise.all(arg) : arg(mockTx)));
   });
 
   const createDto = {
@@ -140,26 +140,29 @@ describe('ContractsService', () => {
   });
 
   describe('findAll', () => {
-    it('should return contracts with activeRent mapped', async () => {
+    it('should return paginated contracts with activeRent mapped', async () => {
       const rent = { id: 1, amount: 500000, effectiveTo: null };
       mockPrisma.contract.findMany.mockResolvedValue([
         { id: 1, local: {}, tenant: {}, rents: [rent] },
       ]);
+      mockPrisma.contract.count.mockResolvedValue(1);
 
-      const result = await service.findAll();
+      const result = await service.findAll({ skip: 0, take: 20 });
 
-      expect(result[0].activeRent).toEqual(rent);
-      expect(result[0]).not.toHaveProperty('rents');
+      expect(result).toMatchObject({ total: 1, skip: 0, take: 20 });
+      expect(result.items[0].activeRent).toEqual(rent);
+      expect(result.items[0]).not.toHaveProperty('rents');
     });
 
     it('should return null activeRent when no active rent exists', async () => {
       mockPrisma.contract.findMany.mockResolvedValue([
         { id: 1, local: {}, tenant: {}, rents: [] },
       ]);
+      mockPrisma.contract.count.mockResolvedValue(1);
 
-      const result = await service.findAll();
+      const result = await service.findAll({ skip: 0, take: 20 });
 
-      expect(result[0].activeRent).toBeNull();
+      expect(result.items[0].activeRent).toBeNull();
     });
   });
 

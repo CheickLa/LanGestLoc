@@ -4,6 +4,7 @@ import { TerminateContractDto } from './dto/terminate-contract.dto';
 import { CancelContractDto } from './dto/cancel-contract.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentsService } from '@/payments/payments.service';
+import { PaginationDto } from '@/common/dto/pagination.dto';
 import { ContractStatus, PaymentType, RentDueStatus } from '@generated/prisma/client';
 
 @Injectable()
@@ -90,21 +91,28 @@ export class ContractsService {
     }
   }
 
-  async findAll() {
-    const contracts = await this.prisma.contract.findMany({
-      include: {
-        local: true,
-        tenant: true,
-        rents: {
-          where: { effectiveTo: null },
+  async findAll({ skip, take }: PaginationDto) {
+    const [contracts, total] = await this.prisma.$transaction([
+      this.prisma.contract.findMany({
+        skip,
+        take,
+        include: {
+          local: true,
+          tenant: true,
+          rents: {
+            where: { effectiveTo: null },
+          },
         },
-      },
-    });
+      }),
+      this.prisma.contract.count(),
+    ]);
 
-    return contracts.map(({ rents, ...contract }) => ({
+    const items = contracts.map(({ rents, ...contract }) => ({
       ...contract,
       activeRent: rents[0] ?? null,
     }));
+
+    return { items, total, skip, take };
   }
 
   async findOne(id: number) {
