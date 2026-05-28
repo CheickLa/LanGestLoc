@@ -37,12 +37,14 @@ describe('PaymentsController', () => {
   });
 
   describe('GET /payments', () => {
-    it('should return all payments', async () => {
-      mockPaymentsService.findAll.mockResolvedValue([{ id: 1 }]);
+    it('should return paginated payments', async () => {
+      const paginated = { items: [{ id: 1 }], total: 1, skip: 0, take: 20 };
+      mockPaymentsService.findAll.mockResolvedValue(paginated);
 
-      const result = await controller.findAll();
+      const result = await controller.findAll({ skip: 0, take: 20 });
 
-      expect(result).toEqual([{ id: 1 }]);
+      expect(mockPaymentsService.findAll).toHaveBeenCalledWith({ skip: 0, take: 20 });
+      expect(result).toEqual(paginated);
     });
   });
 

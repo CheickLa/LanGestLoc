@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
+import { PaginationDto } from '@/common/dto/pagination.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { CurrentUser } from '@/auth/decorators';
@@ -25,10 +26,10 @@ export class PaymentsController {
 
   @Get()
   @ApiOperation({ summary: 'Lister tous les paiements' })
-  @ApiResponse({ status: 200, description: 'Liste des paiements' })
+  @ApiResponse({ status: 200, description: 'Liste paginée des paiements' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  findAll() {
-    return this.paymentsService.findAll();
+  findAll(@Query() pagination: PaginationDto) {
+    return this.paymentsService.findAll(pagination);
   }
 
   @Get('contract/:contractId')
