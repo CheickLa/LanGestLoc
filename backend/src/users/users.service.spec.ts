@@ -26,7 +26,7 @@ const mockPrisma: any = {
   payment: {
     count: jest.fn(),
   },
-  $transaction: jest.fn((cb: any) => cb(mockPrisma)),
+  $transaction: jest.fn((arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma))),
 };
 
 describe('UsersService', () => {
@@ -186,13 +186,16 @@ describe('UsersService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all users with safe select ordered by createdAt desc', async () => {
+    it('should return paginated users with safe select ordered by createdAt desc', async () => {
       const users = [userSafe, { ...userSafe, id: 2, role: Role.ADMIN }];
       mockPrisma.user.findMany.mockResolvedValue(users);
+      mockPrisma.user.count.mockResolvedValue(2);
 
-      const result = await service.findAll();
+      const result = await service.findAll({ skip: 0, take: 20 });
 
       expect(mockPrisma.user.findMany).toHaveBeenCalledWith({
+        skip: 0,
+        take: 20,
         select: {
           id: true,
           name: true,
@@ -202,7 +205,7 @@ describe('UsersService', () => {
         },
         orderBy: { createdAt: 'desc' },
       });
-      expect(result).toEqual(users);
+      expect(result).toEqual({ items: users, total: 2, skip: 0, take: 20 });
     });
   });
 
