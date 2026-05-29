@@ -10,7 +10,9 @@ const mockPrisma = {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    count: jest.fn(),
   },
+  $transaction: jest.fn((operations: unknown[]) => Promise.all(operations)),
 };
 
 describe('LocalsService', () => {
@@ -49,13 +51,14 @@ describe('LocalsService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all locals', async () => {
+    it('should return paginated locals', async () => {
       const locals = [{ id: 1, code: 'LOCAL-001', name: 'B1' }];
       mockPrisma.local.findMany.mockResolvedValue(locals);
+      mockPrisma.local.count.mockResolvedValue(1);
 
-      const result = await service.findAll();
+      const result = await service.findAll({ skip: 0, take: 20 });
 
-      expect(result).toEqual(locals);
+      expect(result).toEqual({ items: locals, total: 1, skip: 0, take: 20 });
     });
   });
 
