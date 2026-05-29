@@ -3,7 +3,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { TenantsService } from './tenants.service';
 import { PrismaService } from '@/prisma/prisma.service';
 
-const mockPrisma: any = {
+const mockPrisma = {
   tenant: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
@@ -12,7 +12,7 @@ const mockPrisma: any = {
     delete: jest.fn(),
     count: jest.fn(),
   },
-  $transaction: jest.fn((arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma))),
+  $transaction: jest.fn((operations: unknown[]) => Promise.all(operations)),
 };
 
 describe('TenantsService', () => {

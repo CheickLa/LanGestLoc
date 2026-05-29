@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import type { Response } from 'express';
 import { ReceiptsController } from './receipts.controller';
 import { ReceiptsService } from './receipts.service';
 
@@ -40,7 +41,7 @@ describe('ReceiptsController', () => {
       const mockRes = {
         set: jest.fn(),
         end: jest.fn(),
-      } as any;
+      } as unknown as Response;
 
       await controller.download(1, mockRes);
 

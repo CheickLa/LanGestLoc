@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ContractsController } from './contracts.controller';
 import { ContractsService } from './contracts.service';
-import { PaymentMethod } from '@generated/prisma/client';
+import { PaymentMethod, Role } from '@generated/prisma/client';
 
 const mockContractsService = {
   create: jest.fn(),
@@ -34,7 +34,7 @@ describe('ContractsController', () => {
         depositPaymentMethod: PaymentMethod.CASH,
         depositPaymentDate: '2026-01-01',
       };
-      const user = { id: 1, email: 'admin@test.com', role: 'ADMIN' as any };
+      const user = { id: 1, email: 'admin@test.com', role: Role.ADMIN };
       mockContractsService.create.mockResolvedValue({ id: 1 });
 
       const result = await controller.create(dto, user);
@@ -74,7 +74,7 @@ describe('ContractsController', () => {
         paymentDate: '2026-12-31',
         paymentMethod: PaymentMethod.CASH,
       };
-      const user = { id: 7, email: 'admin@test.com', role: 'ADMIN' as any };
+      const user = { id: 7, email: 'admin@test.com', role: Role.ADMIN };
       mockContractsService.terminate.mockResolvedValue({ id: 1, status: 'TERMINATED' });
 
       const result = await controller.terminate(1, dto, user);
@@ -90,7 +90,7 @@ describe('ContractsController', () => {
         paymentDate: '2026-04-27',
         paymentMethod: PaymentMethod.CASH,
       };
-      const user = { id: 7, email: 'admin@test.com', role: 'ADMIN' as any };
+      const user = { id: 7, email: 'admin@test.com', role: Role.ADMIN };
       mockContractsService.cancel.mockResolvedValue({ id: 1, status: 'CANCELED' });
 
       const result = await controller.cancel(1, dto, user);
