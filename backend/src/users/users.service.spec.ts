@@ -12,7 +12,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 
 jest.mock('bcrypt');
 
-const mockPrisma: any = {
+const prismaModels = {
   user: {
     update: jest.fn(),
     findUnique: jest.fn(),
@@ -26,7 +26,13 @@ const mockPrisma: any = {
   payment: {
     count: jest.fn(),
   },
-  $transaction: jest.fn((arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(mockPrisma))),
+};
+
+const mockPrisma = {
+  ...prismaModels,
+  $transaction: jest.fn((arg: unknown[] | ((tx: typeof prismaModels) => Promise<unknown>)) =>
+    Array.isArray(arg) ? Promise.all(arg) : arg(prismaModels),
+  ),
 };
 
 describe('UsersService', () => {
