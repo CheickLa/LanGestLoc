@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { CreateLocalDto } from './dto/create-local.dto';
 import { UpdateLocalDto } from './dto/update-local.dto';
 import { PrismaService } from '@/prisma/prisma.service';
+import { PaginationDto } from '@/common/dto/pagination.dto';
 
 @Injectable()
 export class LocalsService {
@@ -21,8 +22,13 @@ export class LocalsService {
     });
   }
 
-  async findAll() {
-    return this.prisma.local.findMany();
+  async findAll({ skip, take }: PaginationDto) {
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.local.findMany({ skip, take }),
+      this.prisma.local.count(),
+    ]);
+
+    return { items, total, skip, take };
   }
 
   async findOne(id: number) {

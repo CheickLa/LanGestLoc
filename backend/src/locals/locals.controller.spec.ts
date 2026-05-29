@@ -36,13 +36,19 @@ describe('LocalsController', () => {
   });
 
   describe('GET /locals', () => {
-    it('should return all locals', async () => {
-      const locals = [{ id: 1, code: 'LOCAL-001', name: 'B1' }];
-      mockLocalsService.findAll.mockResolvedValue(locals);
+    it('should return paginated locals', async () => {
+      const paginated = {
+        items: [{ id: 1, code: 'LOCAL-001', name: 'B1' }],
+        total: 1,
+        skip: 0,
+        take: 20,
+      };
+      mockLocalsService.findAll.mockResolvedValue(paginated);
 
-      const result = await controller.findAll();
+      const result = await controller.findAll({ skip: 0, take: 20 });
 
-      expect(result).toEqual(locals);
+      expect(mockLocalsService.findAll).toHaveBeenCalledWith({ skip: 0, take: 20 });
+      expect(result).toEqual(paginated);
     });
   });
 
