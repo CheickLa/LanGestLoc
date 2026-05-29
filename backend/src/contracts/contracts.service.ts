@@ -5,7 +5,7 @@ import { CancelContractDto } from './dto/cancel-contract.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentsService } from '@/payments/payments.service';
 import { PaginationDto } from '@/common/dto/pagination.dto';
-import { ContractStatus, PaymentType, RentDueStatus } from '@generated/prisma/client';
+import { ContractStatus, PaymentType, Prisma, RentDueStatus } from '@generated/prisma/client';
 
 @Injectable()
 export class ContractsService {
@@ -83,8 +83,8 @@ export class ContractsService {
       await this.paymentsService.generateReceiptSafe(depositPayment.id);
 
       return contract;
-    } catch (error: any) {
-      if (error.code === 'P2002') {
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException(`Le local #${localId} a déjà un contrat actif`);
       }
       throw error;
