@@ -3,7 +3,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ReceiptsService } from '@/receipts/receipts.service';
-import { ContractStatus, DepositStatus, PaymentMethod, PaymentType, RentDueStatus } from '@generated/prisma/client';
+import { ContractStatus, DepositStatus, PaymentMethod, PaymentType, Prisma, RentDueStatus } from '@generated/prisma/client';
 
 const mockTx = {
   rentDue: { updateMany: jest.fn(), update: jest.fn(), findMany: jest.fn(), count: jest.fn() },
@@ -15,7 +15,9 @@ const mockPrisma = {
   rentDue: { findMany: jest.fn() },
   contract: { findUnique: jest.fn() },
   payment: { findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
-  $transaction: jest.fn((arg) => (Array.isArray(arg) ? Promise.all(arg) : arg(mockTx))),
+  $transaction: jest.fn((arg: unknown[] | ((tx: typeof mockTx) => Promise<unknown>)) =>
+    Array.isArray(arg) ? Promise.all(arg) : arg(mockTx),
+  ),
 };
 
 const mockReceiptsService = {
@@ -165,7 +167,11 @@ describe('PaymentsService', () => {
     it('should throw ConflictException on Prisma P2002 (concurrent payment)', async () => {
       mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
       mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
-      mockPrisma.$transaction.mockRejectedValue({ code: 'P2002' });
+      const prismaError = new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+        code: 'P2002',
+        clientVersion: '5.0.0',
+      });
+      mockPrisma.$transaction.mockRejectedValue(prismaError);
 
       await expect(service.create(dto, 1)).rejects.toThrow(ConflictException);
     });
@@ -259,7 +265,7 @@ describe('PaymentsService', () => {
     it('should create a DEPOSIT_HELD payment without payment lines', async () => {
       mockTx.payment.create.mockResolvedValue({ id: 33 });
 
-      const result = await service.createDepositHeld(mockTx as any, params);
+      const result = await service.createDepositHeld(mockTx as unknown as Prisma.TransactionClient, params);
 
       expect(mockTx.payment.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -292,7 +298,7 @@ describe('PaymentsService', () => {
       mockTx.rentDue.count.mockResolvedValue(0);
       mockTx.payment.create.mockResolvedValue({ id: 88 });
 
-      const result = await service.createDepositRefund(mockTx as any, params);
+      const result = await service.createDepositRefund(mockTx as unknown as Prisma.TransactionClient, params);
 
       expect(mockTx.payment.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -313,20 +319,20 @@ describe('PaymentsService', () => {
     it('should throw NotFoundException when deposit does not exist', async () => {
       mockTx.deposit.findUnique.mockResolvedValue(null);
 
-      await expect(service.createDepositRefund(mockTx as any, params)).rejects.toThrow(NotFoundException);
+      await expect(service.createDepositRefund(mockTx as unknown as Prisma.TransactionClient, params)).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ConflictException when deposit is not HELD', async () => {
       mockTx.deposit.findUnique.mockResolvedValue({ ...held, status: DepositStatus.REFUNDED });
 
-      await expect(service.createDepositRefund(mockTx as any, params)).rejects.toThrow(ConflictException);
+      await expect(service.createDepositRefund(mockTx as unknown as Prisma.TransactionClient, params)).rejects.toThrow(ConflictException);
     });
 
     it('should throw ConflictException when unpaid rent dues remain', async () => {
       mockTx.deposit.findUnique.mockResolvedValue(held);
       mockTx.rentDue.count.mockResolvedValue(2);
 
-      await expect(service.createDepositRefund(mockTx as any, params)).rejects.toThrow(ConflictException);
+      await expect(service.createDepositRefund(mockTx as unknown as Prisma.TransactionClient, params)).rejects.toThrow(ConflictException);
     });
   });
 

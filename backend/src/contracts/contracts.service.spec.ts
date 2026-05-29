@@ -3,7 +3,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { ContractsService } from './contracts.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentsService } from '@/payments/payments.service';
-import { ContractStatus, PaymentMethod, PaymentType, RentDueStatus } from '@generated/prisma/client';
+import { ContractStatus, PaymentMethod, PaymentType, Prisma, RentDueStatus } from '@generated/prisma/client';
 
 const mockTx = {
   contract: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn() },
@@ -133,7 +133,11 @@ describe('ContractsService', () => {
     it('should throw ConflictException on Prisma P2002 (concurrent active contract)', async () => {
       mockPrisma.local.findUnique.mockResolvedValue({ id: 1 });
       mockPrisma.tenant.findUnique.mockResolvedValue({ id: 1 });
-      mockPrisma.$transaction.mockRejectedValueOnce({ code: 'P2002' });
+      const prismaError = new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+        code: 'P2002',
+        clientVersion: '5.0.0',
+      });
+      mockPrisma.$transaction.mockRejectedValueOnce(prismaError);
 
       await expect(service.create(createDto, 1)).rejects.toThrow(ConflictException);
     });

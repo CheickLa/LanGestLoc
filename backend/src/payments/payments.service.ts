@@ -117,8 +117,8 @@ export class PaymentsService {
       }
 
       return payment;
-    } catch (error: any) {
-      if (error.code === 'P2002') {
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException(
           'Une ou plusieurs échéances viennent d\'être soldées par un autre paiement',
         );
