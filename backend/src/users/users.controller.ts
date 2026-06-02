@@ -11,13 +11,23 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+  ApiOkResponse,
+} from '@nestjs/swagger';
 import { Role } from '@generated/prisma/client';
 import { UsersService } from './users.service';
 import { PaginationDto } from '@/common/dto/pagination.dto';
+import { ApiPaginatedResponse } from '@/common/decorators/api-paginated-response.decorator';
+import { MessageEntity } from '@/common/entities/message.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
+import { UserEntity } from './entities/user.entity';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { CurrentUser, Roles } from '@/auth/decorators';
 import { AuthenticatedUser } from '@/auth/strategies/jwt.strategy';
@@ -31,7 +41,7 @@ export class UsersController {
 
   @Patch('me')
   @ApiOperation({ summary: 'Mettre à jour son nom ou son email' })
-  @ApiResponse({ status: 200, description: 'Profil mis à jour' })
+  @ApiOkResponse({ description: 'Profil mis à jour', type: UserEntity })
   @ApiResponse({ status: 400, description: 'Aucune donnée à mettre à jour' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 409, description: 'Un utilisateur avec cet email existe déjà' })
@@ -45,7 +55,7 @@ export class UsersController {
   @Patch('me/password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Changer son mot de passe' })
-  @ApiResponse({ status: 200, description: 'Mot de passe mis à jour' })
+  @ApiOkResponse({ description: 'Mot de passe mis à jour', type: MessageEntity })
   @ApiResponse({ status: 400, description: 'Nouveau mot de passe identique à l\'actuel' })
   @ApiResponse({ status: 401, description: 'Mot de passe actuel incorrect ou token invalide' })
   changePassword(
@@ -58,7 +68,7 @@ export class UsersController {
   @Get()
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Lister tous les utilisateurs (ADMIN)' })
-  @ApiResponse({ status: 200, description: 'Liste paginée des utilisateurs' })
+  @ApiPaginatedResponse(UserEntity)
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
   findAll(@Query() pagination: PaginationDto) {
@@ -69,7 +79,7 @@ export class UsersController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Récupérer un utilisateur par ID (ADMIN)' })
   @ApiParam({ name: 'id', description: 'ID de l\'utilisateur', type: Number })
-  @ApiResponse({ status: 200, description: 'Utilisateur trouvé' })
+  @ApiOkResponse({ description: 'Utilisateur trouvé', type: UserEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
   @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
@@ -81,7 +91,7 @@ export class UsersController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Modifier un utilisateur (ADMIN)' })
   @ApiParam({ name: 'id', description: 'ID de l\'utilisateur', type: Number })
-  @ApiResponse({ status: 200, description: 'Utilisateur mis à jour' })
+  @ApiOkResponse({ description: 'Utilisateur mis à jour', type: UserEntity })
   @ApiResponse({ status: 400, description: 'Aucune donnée à mettre à jour ou dernier ADMIN' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
