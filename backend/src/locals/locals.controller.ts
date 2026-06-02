@@ -10,12 +10,21 @@ import {
   ParseIntPipe,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiTags,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiCreatedResponse,
+} from '@nestjs/swagger';
 import { Role } from '@generated/prisma/client';
 import { LocalsService } from './locals.service';
 import { PaginationDto } from '@/common/dto/pagination.dto';
+import { ApiPaginatedResponse } from '@/common/decorators/api-paginated-response.decorator';
 import { CreateLocalDto } from './dto/create-local.dto';
 import { UpdateLocalDto } from './dto/update-local.dto';
+import { LocalEntity } from './entities/local.entity';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { Roles } from '@/auth/decorators';
 
@@ -29,7 +38,7 @@ export class LocalsController {
   @Post()
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Créer un local (ADMIN)' })
-  @ApiResponse({ status: 201, description: 'Local créé avec succès' })
+  @ApiCreatedResponse({ description: 'Local créé avec succès', type: LocalEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
   @ApiResponse({ status: 409, description: 'Un local avec ce code existe déjà' })
@@ -39,7 +48,7 @@ export class LocalsController {
 
   @Get()
   @ApiOperation({ summary: 'Récupérer tous les locaux' })
-  @ApiResponse({ status: 200, description: 'Liste paginée des locaux' })
+  @ApiPaginatedResponse(LocalEntity)
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   findAll(@Query() pagination: PaginationDto) {
     return this.localsService.findAll(pagination);
@@ -47,7 +56,7 @@ export class LocalsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Récupérer un local par son ID' })
-  @ApiResponse({ status: 200, description: 'Local trouvé' })
+  @ApiOkResponse({ description: 'Local trouvé', type: LocalEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Local non trouvé' })
   findOne(@Param('id', ParseIntPipe) id: number) {
@@ -57,7 +66,7 @@ export class LocalsController {
   @Patch(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Mettre à jour un local (ADMIN)' })
-  @ApiResponse({ status: 200, description: 'Local mis à jour' })
+  @ApiOkResponse({ description: 'Local mis à jour', type: LocalEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
   @ApiResponse({ status: 404, description: 'Local non trouvé' })
@@ -72,7 +81,7 @@ export class LocalsController {
   @Delete(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Supprimer un local (ADMIN)' })
-  @ApiResponse({ status: 200, description: 'Local supprimé' })
+  @ApiOkResponse({ description: 'Local supprimé', type: LocalEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
   @ApiResponse({ status: 404, description: 'Local non trouvé' })
