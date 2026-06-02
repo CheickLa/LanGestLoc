@@ -1,11 +1,24 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiTags, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiTags,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiCreatedResponse,
+} from '@nestjs/swagger';
 import { Role } from '@generated/prisma/client';
 import { ContractsService } from './contracts.service';
 import { PaginationDto } from '@/common/dto/pagination.dto';
+import { ApiPaginatedResponse } from '@/common/decorators/api-paginated-response.decorator';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { TerminateContractDto } from './dto/terminate-contract.dto';
 import { CancelContractDto } from './dto/cancel-contract.dto';
+import {
+  ContractEntity,
+  ContractListItemEntity,
+  ContractDetailEntity,
+} from './entities/contract.entity';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { CurrentUser, Roles } from '@/auth/decorators';
 import { AuthenticatedUser } from '@/auth/strategies/jwt.strategy';
@@ -20,7 +33,7 @@ export class ContractsController {
   @Post()
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Créer un contrat de location (ADMIN)' })
-  @ApiResponse({ status: 201, description: 'Contrat créé avec succès' })
+  @ApiCreatedResponse({ description: 'Contrat créé avec succès', type: ContractEntity })
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
@@ -32,7 +45,7 @@ export class ContractsController {
 
   @Get()
   @ApiOperation({ summary: 'Récupérer tous les contrats' })
-  @ApiResponse({ status: 200, description: 'Liste paginée des contrats' })
+  @ApiPaginatedResponse(ContractListItemEntity)
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   findAll(@Query() pagination: PaginationDto) {
     return this.contractsService.findAll(pagination);
@@ -40,7 +53,7 @@ export class ContractsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Récupérer un contrat par son ID' })
-  @ApiResponse({ status: 200, description: 'Contrat trouvé' })
+  @ApiOkResponse({ description: 'Contrat trouvé', type: ContractDetailEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
   findOne(@Param('id', ParseIntPipe) id: number) {
@@ -50,7 +63,7 @@ export class ContractsController {
   @Patch(':id/terminate')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Résilier un contrat (ADMIN)' })
-  @ApiResponse({ status: 200, description: 'Contrat résilié avec succès' })
+  @ApiOkResponse({ description: 'Contrat résilié avec succès', type: ContractDetailEntity })
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
@@ -67,7 +80,7 @@ export class ContractsController {
   @Patch(':id/cancel')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: "Annuler un contrat avec remboursement de la caution (ADMIN, uniquement si aucun paiement de loyer n'existe)" })
-  @ApiResponse({ status: 200, description: 'Contrat annulé avec succès' })
+  @ApiOkResponse({ description: 'Contrat annulé avec succès', type: ContractEntity })
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
