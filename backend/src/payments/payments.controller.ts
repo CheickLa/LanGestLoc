@@ -1,8 +1,21 @@
 import { Controller, Get, Post, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiOkResponse,
+  ApiCreatedResponse,
+} from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { PaginationDto } from '@/common/dto/pagination.dto';
+import { ApiPaginatedResponse } from '@/common/decorators/api-paginated-response.decorator';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import {
+  PaymentWithLinesEntity,
+  PaymentWithRelationsEntity,
+  PaymentDetailEntity,
+} from './entities/payment.entity';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { CurrentUser } from '@/auth/decorators';
 
@@ -15,7 +28,7 @@ export class PaymentsController {
 
   @Post()
   @ApiOperation({ summary: 'Enregistrer un paiement (un ou plusieurs mois)' })
-  @ApiResponse({ status: 201, description: 'Paiement enregistré' })
+  @ApiCreatedResponse({ description: 'Paiement enregistré', type: PaymentWithLinesEntity })
   @ApiResponse({ status: 400, description: 'Données invalides ou contrat annulé' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Échéances ou contrat non trouvés' })
@@ -26,7 +39,7 @@ export class PaymentsController {
 
   @Get()
   @ApiOperation({ summary: 'Lister tous les paiements' })
-  @ApiResponse({ status: 200, description: 'Liste paginée des paiements' })
+  @ApiPaginatedResponse(PaymentWithRelationsEntity)
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   findAll(@Query() pagination: PaginationDto) {
     return this.paymentsService.findAll(pagination);
@@ -34,7 +47,7 @@ export class PaymentsController {
 
   @Get('contract/:contractId')
   @ApiOperation({ summary: 'Lister les paiements d\'un contrat' })
-  @ApiResponse({ status: 200, description: 'Liste des paiements du contrat' })
+  @ApiOkResponse({ description: 'Liste des paiements du contrat', type: PaymentWithLinesEntity, isArray: true })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
   findAllByContract(@Param('contractId', ParseIntPipe) contractId: number) {
@@ -43,7 +56,7 @@ export class PaymentsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Détail d\'un paiement' })
-  @ApiResponse({ status: 200, description: 'Détail du paiement' })
+  @ApiOkResponse({ description: 'Détail du paiement', type: PaymentDetailEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Paiement non trouvé' })
   findOne(@Param('id', ParseIntPipe) id: number) {
