@@ -1,8 +1,16 @@
 import { Controller, Get, Post, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiTags, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiTags,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiCreatedResponse,
+} from '@nestjs/swagger';
 import { Role } from '@generated/prisma/client';
 import { RentsService } from './rents.service';
 import { CreateRentDto } from './dto/create-rent.dto';
+import { RentEntity } from './entities/rent.entity';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { Roles } from '@/auth/decorators';
 
@@ -16,7 +24,7 @@ export class RentsController {
   @Post()
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Augmenter le loyer (ADMIN, SCD crée un nouveau Rent, clôture l\'ancien)' })
-  @ApiResponse({ status: 201, description: 'Nouveau loyer créé, ancien clôturé' })
+  @ApiCreatedResponse({ description: 'Nouveau loyer créé, ancien clôturé', type: RentEntity })
   @ApiResponse({ status: 400, description: 'Montant identique, date incohérente ou données invalides' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
@@ -28,7 +36,7 @@ export class RentsController {
 
   @Get('contract/:contractId')
   @ApiOperation({ summary: 'Historique de tous les loyers d\'un contrat' })
-  @ApiResponse({ status: 200, description: 'Liste des loyers triés par effectiveFrom' })
+  @ApiOkResponse({ description: 'Liste des loyers triés par effectiveFrom', type: RentEntity, isArray: true })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
   findAllByContract(@Param('contractId', ParseIntPipe) contractId: number) {
@@ -37,7 +45,7 @@ export class RentsController {
 
   @Get('contract/:contractId/current')
   @ApiOperation({ summary: 'Loyer actif actuel d\'un contrat (effectiveTo = null)' })
-  @ApiResponse({ status: 200, description: 'Loyer actif trouvé' })
+  @ApiOkResponse({ description: 'Loyer actif trouvé', type: RentEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Aucun loyer actif sur ce contrat' })
   findCurrent(@Param('contractId', ParseIntPipe) contractId: number) {
