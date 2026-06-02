@@ -1,10 +1,19 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiCreatedResponse,
+} from '@nestjs/swagger';
 import { Role } from '@generated/prisma/client';
 import { TenantsService } from './tenants.service';
 import { PaginationDto } from '@/common/dto/pagination.dto';
+import { ApiPaginatedResponse } from '@/common/decorators/api-paginated-response.decorator';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { TenantEntity } from './entities/tenant.entity';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { Roles } from '@/auth/decorators';
 
@@ -18,7 +27,7 @@ export class TenantsController {
   @Post()
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Créer un nouveau locataire (ADMIN)' })
-  @ApiResponse({ status: 201, description: 'Le locataire a été créé avec succès.' })
+  @ApiCreatedResponse({ description: 'Le locataire a été créé avec succès.', type: TenantEntity })
   @ApiResponse({ status: 400, description: 'Requête invalide (ex: date de naissance dans le futur).' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
@@ -29,7 +38,7 @@ export class TenantsController {
 
   @Get()
   @ApiOperation({ summary: 'Récupérer tous les locataires' })
-  @ApiResponse({ status: 200, description: 'Retourne la liste paginée des locataires.' })
+  @ApiPaginatedResponse(TenantEntity)
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   findAll(@Query() pagination: PaginationDto) {
     return this.tenantsService.findAll(pagination);
@@ -37,7 +46,7 @@ export class TenantsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Récupérer un locataire par son ID' })
-  @ApiResponse({ status: 200, description: "Retourne le locataire correspondant à l'ID spécifié." })
+  @ApiOkResponse({ description: "Retourne le locataire correspondant à l'ID spécifié.", type: TenantEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Locataire non trouvé.' })
   findOne(@Param('id', ParseIntPipe) id: number) {
@@ -47,7 +56,7 @@ export class TenantsController {
   @Patch(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Mettre à jour un locataire (ADMIN)' })
-  @ApiResponse({ status: 200, description: 'Le locataire a été mis à jour avec succès.' })
+  @ApiOkResponse({ description: 'Le locataire a été mis à jour avec succès.', type: TenantEntity })
   @ApiResponse({ status: 400, description: 'Requête invalide (ex: date de naissance dans le futur).' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
@@ -60,7 +69,7 @@ export class TenantsController {
   @Delete(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Supprimer un locataire (ADMIN)' })
-  @ApiResponse({ status: 200, description: 'Le locataire a été supprimé avec succès.' })
+  @ApiOkResponse({ description: 'Le locataire a été supprimé avec succès.', type: TenantEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
   @ApiResponse({ status: 404, description: 'Locataire non trouvé.' })
