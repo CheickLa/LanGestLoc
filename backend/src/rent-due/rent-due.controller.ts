@@ -1,8 +1,16 @@
 import { Controller, Get, Post, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiTags, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiTags,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiCreatedResponse,
+} from '@nestjs/swagger';
 import { Role, RentDueStatus } from '@generated/prisma/client';
 import { RentDueService } from './rent-due.service';
 import { CreateRentDueDto } from './dto/create-rent-due.dto';
+import { RentDueEntity } from './entities/rent-due.entity';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { Roles } from '@/auth/decorators';
 
@@ -16,7 +24,7 @@ export class RentDueController {
   @Post('generate')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Générer manuellement une échéance pour un contrat et un mois donnés' })
-  @ApiResponse({ status: 201, description: 'Échéance créée' })
+  @ApiCreatedResponse({ description: 'Échéance créée', type: RentDueEntity })
   @ApiResponse({ status: 400, description: 'Données invalides (format du mois incorrect, etc.)' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
@@ -28,7 +36,7 @@ export class RentDueController {
 
   @Get('contract/:contractId')
   @ApiOperation({ summary: 'Lister toutes les échéances d\'un contrat' })
-  @ApiResponse({ status: 200, description: 'Liste des échéances triées par mois décroissant' })
+  @ApiOkResponse({ description: 'Liste des échéances triées par mois décroissant', type: RentDueEntity, isArray: true })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
   findAllByContract(@Param('contractId', ParseIntPipe) contractId: number) {
@@ -37,7 +45,7 @@ export class RentDueController {
 
   @Get('contract/:contractId/pending')
   @ApiOperation({ summary: 'Lister les échéances PENDING d\'un contrat' })
-  @ApiResponse({ status: 200, description: 'Liste des échéances en attente de paiement' })
+  @ApiOkResponse({ description: 'Liste des échéances en attente de paiement', type: RentDueEntity, isArray: true })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
   findPendingByContract(@Param('contractId', ParseIntPipe) contractId: number) {
