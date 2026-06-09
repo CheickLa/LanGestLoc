@@ -208,12 +208,14 @@ export class ContractsService {
         paymentMethod: dto.paymentMethod,
       });
 
-      const result = await tx.contract.findUnique({
+      const contract = await tx.contract.findUniqueOrThrow({
         where: { id },
         include: { local: true, tenant: true, rents: true, deposit: true },
       });
 
-      return { depositPayment, result };
+      const activeRent = contract.rents.find((r) => r.effectiveTo === null) ?? null;
+
+      return { depositPayment, result: { ...contract, activeRent } };
     });
 
     await this.paymentsService.generateReceiptSafe(depositPayment.id);
