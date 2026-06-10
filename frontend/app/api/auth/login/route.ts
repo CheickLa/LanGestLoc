@@ -7,7 +7,7 @@ import { AUTH_COOKIE_NAME } from "@/lib/auth";
 type LoginDto = components["schemas"]["LoginDto"];
 type AuthTokenEntity = components["schemas"]["AuthTokenEntity"];
 
-const DEFAULT_COOKIE_MAX_AGE = 60 * 60 * 24; // 1 jour
+const DEFAULT_COOKIE_MAX_AGE = 60 * 60 * 7; // 7 heures
 
 export async function POST(request: Request): Promise<NextResponse> {
   let body: unknown;
