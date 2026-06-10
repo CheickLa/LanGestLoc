@@ -3,22 +3,23 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import type { components } from "@/lib/api/schema";
-import { AUTH_COOKIE_NAME, LOGIN_PATH } from "@/lib/auth";
+import { AUTH_COOKIE_NAME, LOGIN_PATH, LOGOUT_PATH } from "@/lib/auth";
 
 type UserEntity = components["schemas"]["UserEntity"];
 
-/**
- * Valide la session côté serveur en appelant le backend.
- * `cache()` dédoublonne l'appel sur une même requête (layout + page).
- * @returns l'utilisateur si le token est valide, sinon `null`.
- */
-export const getCurrentUser = cache(async (): Promise<UserEntity | null> => {
+type Session =
+  | { status: "authenticated"; user: UserEntity }
+  | { status: "anonymous" }
+  | { status: "rejected" }
+  | { status: "error" };
+
+const loadSession = cache(async (): Promise<Session> => {
   const cookieStore = await cookies();
   const token = cookieStore.get(AUTH_COOKIE_NAME)?.value;
-  if (!token) return null;
+  if (!token) return { status: "anonymous" };
 
   const backendUrl = process.env.BACKEND_URL;
-  if (!backendUrl) return null;
+  if (!backendUrl) return { status: "error" };
 
   let response: Response;
   try {
@@ -27,22 +28,31 @@ export const getCurrentUser = cache(async (): Promise<UserEntity | null> => {
       cache: "no-store",
     });
   } catch {
-    return null;
+    return { status: "error" };
   }
 
-  if (!response.ok) return null;
+  if (response.status === 401) return { status: "rejected" };
+  if (!response.ok) return { status: "error" };
 
   try {
-    return (await response.json()) as UserEntity;
+    return { status: "authenticated", user: (await response.json()) as UserEntity };
   } catch {
-    return null;
+    return { status: "error" };
   }
 });
 
+export async function getCurrentUser(): Promise<UserEntity | null> {
+  const session = await loadSession();
+  return session.status === "authenticated" ? session.user : null;
+}
+
 export async function requireUser(): Promise<UserEntity> {
-  const user = await getCurrentUser();
-  if (!user) redirect(LOGIN_PATH);
-  return user;
+  const session = await loadSession();
+  if (session.status === "authenticated") return session.user;
+
+  if (session.status === "rejected") redirect(LOGOUT_PATH);
+
+  redirect(LOGIN_PATH);
 }
 
 export type { UserEntity };
