@@ -63,10 +63,15 @@ export class AuthService {
   }
 
   async getProfile(userId: number) {
-    const user = await this.prisma.user.findUniqueOrThrow({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, name: true, email: true, role: true, createdAt: true },
     });
+
+    if (!user) {
+      throw new UnauthorizedException('Session invalide, veuillez vous reconnecter');
+    }
+
     return user;
   }
 
