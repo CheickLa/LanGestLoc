@@ -1,11 +1,12 @@
 import { requireUser } from "@/lib/auth-server";
+import { AppShell } from "@/components/layout/app-shell";
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireUser();
+  const user = await requireUser();
 
-  return children;
+  return <AppShell user={user}>{children}</AppShell>;
 }
