@@ -14,12 +14,12 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-svh items-center justify-center bg-muted px-4 py-10">
       <Card className="w-full max-w-md">
-        <CardHeader className="flex flex-col items-center gap-4 text-center">
+        <CardHeader className="flex flex-col items-center gap-7 text-center">
           <Image
-            src="/logo.svg"
+            src="/icon-512.png"
             alt="LanGestLoc"
-            width={276}
-            height={147}
+            width={80}
+            height={80}
             priority
           />
           <div className="grid gap-1.5">
