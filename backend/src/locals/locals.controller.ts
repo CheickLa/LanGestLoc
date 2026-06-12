@@ -20,11 +20,11 @@ import {
 } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/client';
 import { LocalsService } from './locals.service';
-import { PaginationDto } from '@/common/dto/pagination.dto';
 import { ApiPaginatedResponse } from '@/common/decorators/api-paginated-response.decorator';
 import { CreateLocalDto } from './dto/create-local.dto';
 import { UpdateLocalDto } from './dto/update-local.dto';
-import { LocalEntity } from './entities/local.entity';
+import { FindLocalsQueryDto } from './dto/find-locals-query.dto';
+import { LocalEntity, LocalListItemEntity } from './entities/local.entity';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { Roles } from '@/auth/decorators';
 
@@ -47,11 +47,11 @@ export class LocalsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Récupérer tous les locaux' })
-  @ApiPaginatedResponse(LocalEntity)
+  @ApiOperation({ summary: 'Récupérer tous les locaux (recherche + pagination)' })
+  @ApiPaginatedResponse(LocalListItemEntity)
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  findAll(@Query() pagination: PaginationDto) {
-    return this.localsService.findAll(pagination);
+  findAll(@Query() query: FindLocalsQueryDto) {
+    return this.localsService.findAll(query);
   }
 
   @Get(':id')

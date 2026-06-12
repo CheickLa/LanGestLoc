@@ -36,18 +36,29 @@ describe('LocalsController', () => {
   });
 
   describe('GET /locals', () => {
-    it('should return paginated locals', async () => {
+    it('should forward the query and return paginated locals', async () => {
       const paginated = {
-        items: [{ id: 1, code: 'LOCAL-001', name: 'B1' }],
+        items: [
+          {
+            id: 1,
+            code: 'LOCAL-001',
+            name: 'Boutique Madina',
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            status: 'OCCUPIED',
+            currentTenant: { id: 7, name: 'Ibrahima Sow' },
+            hasContracts: true,
+          },
+        ],
         total: 1,
         skip: 0,
         take: 20,
       };
       mockLocalsService.findAll.mockResolvedValue(paginated);
 
-      const result = await controller.findAll({ skip: 0, take: 20 });
+      const query = { skip: 0, take: 20, search: 'Madina' };
+      const result = await controller.findAll(query);
 
-      expect(mockLocalsService.findAll).toHaveBeenCalledWith({ skip: 0, take: 20 });
+      expect(mockLocalsService.findAll).toHaveBeenCalledWith(query);
       expect(result).toEqual(paginated);
     });
   });
