@@ -7,7 +7,8 @@ type Schemas = components["schemas"];
 type Status =
   | Schemas["ContractEntity"]["status"]
   | Schemas["RentDueEntity"]["status"]
-  | Schemas["DepositEntity"]["status"];
+  | Schemas["DepositEntity"]["status"]
+  | Schemas["LocalListItemEntity"]["status"];
 
 type Variant = "success" | "danger" | "info" | "warning" | "neutral";
 
@@ -20,6 +21,8 @@ const STATUS_MAP: Record<Status, { label: string; variant: Variant }> = {
   LATE: { label: "En retard", variant: "danger" },
   HELD: { label: "Détenue", variant: "warning" },
   REFUNDED: { label: "Restituée", variant: "neutral" },
+  OCCUPIED: { label: "Occupé", variant: "info" },
+  VACANT: { label: "Vacant", variant: "neutral" },
 };
 
 const VARIANT_CLASSES: Record<Variant, string> = {
