@@ -1,5 +1,7 @@
 import { requireUser } from "@/lib/auth-server";
 import { AppShell } from "@/components/layout/app-shell";
+import { Providers } from "@/app/providers";
+import { Toaster } from "@/components/ui/sonner";
 
 export default async function AppLayout({
   children,
@@ -8,5 +10,10 @@ export default async function AppLayout({
 }) {
   const user = await requireUser();
 
-  return <AppShell user={user}>{children}</AppShell>;
+  return (
+    <Providers>
+      <AppShell user={user}>{children}</AppShell>
+      <Toaster position="top-center" richColors />
+    </Providers>
+  );
 }
