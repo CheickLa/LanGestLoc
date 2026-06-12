@@ -51,14 +51,92 @@ describe('LocalsService', () => {
   });
 
   describe('findAll', () => {
-    it('should return paginated locals', async () => {
-      const locals = [{ id: 1, code: 'LOCAL-001', name: 'B1' }];
-      mockPrisma.local.findMany.mockResolvedValue(locals);
+    const occupiedRow = {
+      id: 1,
+      code: 'LOCAL-001',
+      name: 'Boutique Madina',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      contracts: [{ tenant: { id: 7, name: 'Ibrahima Sow' } }],
+      _count: { contracts: 2 },
+    };
+    const vacantRow = {
+      id: 2,
+      code: 'LOCAL-002',
+      name: 'Échoppe Taouyah',
+      createdAt: new Date('2026-01-02T00:00:00.000Z'),
+      contracts: [],
+      _count: { contracts: 0 },
+    };
+
+    it('should map an active contract to OCCUPIED with the current tenant', async () => {
+      mockPrisma.local.findMany.mockResolvedValue([occupiedRow]);
       mockPrisma.local.count.mockResolvedValue(1);
 
       const result = await service.findAll({ skip: 0, take: 20 });
 
-      expect(result).toEqual({ items: locals, total: 1, skip: 0, take: 20 });
+      expect(result).toEqual({
+        items: [
+          {
+            id: 1,
+            code: 'LOCAL-001',
+            name: 'Boutique Madina',
+            createdAt: occupiedRow.createdAt,
+            status: 'OCCUPIED',
+            currentTenant: { id: 7, name: 'Ibrahima Sow' },
+            hasContracts: true,
+          },
+        ],
+        total: 1,
+        skip: 0,
+        take: 20,
+      });
+    });
+
+    it('should map no active contract to VACANT with null tenant', async () => {
+      mockPrisma.local.findMany.mockResolvedValue([vacantRow]);
+      mockPrisma.local.count.mockResolvedValue(1);
+
+      const result = await service.findAll({ skip: 0, take: 20 });
+
+      expect(result.items[0]).toEqual({
+        id: 2,
+        code: 'LOCAL-002',
+        name: 'Échoppe Taouyah',
+        createdAt: vacantRow.createdAt,
+        status: 'VACANT',
+        currentTenant: null,
+        hasContracts: false,
+      });
+    });
+
+    it('should query with an empty where when no search is provided', async () => {
+      mockPrisma.local.findMany.mockResolvedValue([]);
+      mockPrisma.local.count.mockResolvedValue(0);
+
+      await service.findAll({ skip: 0, take: 20 });
+
+      expect(mockPrisma.local.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {}, skip: 0, take: 20 }),
+      );
+      expect(mockPrisma.local.count).toHaveBeenCalledWith({ where: {} });
+    });
+
+    it('should filter by code or name (case-insensitive) when search is provided', async () => {
+      mockPrisma.local.findMany.mockResolvedValue([]);
+      mockPrisma.local.count.mockResolvedValue(0);
+
+      await service.findAll({ skip: 0, take: 20, search: 'Madina' });
+
+      const expectedWhere = {
+        OR: [
+          { code: { contains: 'Madina', mode: 'insensitive' } },
+          { name: { contains: 'Madina', mode: 'insensitive' } },
+        ],
+      };
+      expect(mockPrisma.local.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(mockPrisma.local.count).toHaveBeenCalledWith({ where: expectedWhere });
     });
   });
 
