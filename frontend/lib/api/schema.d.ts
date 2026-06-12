@@ -62,7 +62,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Récupérer tous les locaux */
+        /** Récupérer tous les locaux (recherche + pagination) */
         get: operations["LocalsController_findAll"];
         put?: never;
         /** Créer un local (ADMIN) */
@@ -567,6 +567,38 @@ export interface components {
             total: number;
             skip: number;
             take: number;
+        };
+        CurrentTenantEntity: {
+            /** @example 7 */
+            id: number;
+            /** @example Ibrahima Sow */
+            name: string;
+        };
+        LocalListItemEntity: {
+            /** @example 1 */
+            id: number;
+            /** @example LOCAL-001 */
+            code: string;
+            /** @example Boutique 1 */
+            name: string;
+            /**
+             * Format: date-time
+             * @example 2026-01-15T10:30:00.000Z
+             */
+            createdAt: string;
+            /**
+             * @description Dérivé : OCCUPIED si un contrat ACTIVE existe, sinon VACANT
+             * @example OCCUPIED
+             * @enum {string}
+             */
+            status: "OCCUPIED" | "VACANT";
+            /** @description Locataire du contrat ACTIVE, ou null si vacant */
+            currentTenant: components["schemas"]["CurrentTenantEntity"] | null;
+            /**
+             * @description Au moins un contrat (tout statut) rattaché → suppression bloquée
+             * @example true
+             */
+            hasContracts: boolean;
         };
         UpdateLocalDto: {
             /**
@@ -1239,6 +1271,8 @@ export interface operations {
                 skip?: number;
                 /** @description Nombre d'éléments à retourner */
                 take?: number;
+                /** @description Recherche par code ou nom (insensible à la casse) */
+                search?: string;
             };
             header?: never;
             path?: never;
@@ -1252,7 +1286,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedDto"] & {
-                        items?: components["schemas"]["LocalEntity"][];
+                        items?: components["schemas"]["LocalListItemEntity"][];
                     };
                 };
             };
