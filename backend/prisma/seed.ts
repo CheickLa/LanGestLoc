@@ -93,10 +93,10 @@ async function main() {
   // ── 2. Locals (4) ───────────────────────────────────────────────────────
 
   const localsData = [
-    { code: 'BTQ-001', name: 'Boutique 1' },
-    { code: 'BTQ-002', name: 'Boutique 2' },
-    { code: 'BTQ-003', name: 'Boutique 3' },
-    { code: 'BTQ-004', name: 'Boutique 4' },
+    { code: 'LOCAL-001', name: 'Boutique 1' },
+    { code: 'LOCAL-002', name: 'Boutique 2' },
+    { code: 'LOCAL-003', name: 'Boutique 3' },
+    { code: 'LOCAL-004', name: 'Boutique 4' },
   ];
 
   const locals = await Promise.all(
@@ -163,14 +163,14 @@ async function main() {
 
   // ── 4. Contracts (6) ────────────────────────────────────────────────────
   //
-  //  BTQ-001 : contrat 1 (Ousmane, TERMINATED juil–déc 2025)
+  //  LOCAL-001 : contrat 1 (Ousmane, TERMINATED juil–déc 2025)
   //            contrat 2 (Ibrahima, ACTIVE depuis jan 2026)
-  //  BTQ-002 : contrat 3 (Aissatou, CANCELED oct 2025 — annulé sans paiement)
+  //  LOCAL-002 : contrat 3 (Aissatou, CANCELED oct 2025 — annulé sans paiement)
   //            contrat 4 (Fatoumata, ACTIVE depuis fév 2026)
-  //  BTQ-003 : contrat 5 (Mamadou Sylla, ACTIVE depuis jan 2026)
-  //  BTQ-004 : contrat 6 (Ousmane, ACTIVE depuis mars 2026 — 2e contrat du même tenant)
+  //  LOCAL-003 : contrat 5 (Mamadou Sylla, ACTIVE depuis jan 2026)
+  //  LOCAL-004 : contrat 6 (Ousmane, ACTIVE depuis mars 2026 — 2e contrat du même tenant)
 
-  // Contrat 1 : Ousmane → BTQ-001 (TERMINATED, juil–déc 2025)
+  // Contrat 1 : Ousmane → LOCAL-001 (TERMINATED, juil–déc 2025)
   const contract1 = await prisma.contract.upsert({
     where: { id: 1 },
     update: {},
@@ -184,7 +184,7 @@ async function main() {
     },
   });
 
-  // Contrat 2 : Ibrahima → BTQ-001 (ACTIVE, depuis jan 2026 — succède au contrat 1)
+  // Contrat 2 : Ibrahima → LOCAL-001 (ACTIVE, depuis jan 2026 — succède au contrat 1)
   const contract2 = await prisma.contract.upsert({
     where: { id: 2 },
     update: {},
@@ -197,7 +197,7 @@ async function main() {
     },
   });
 
-  // Contrat 3 : Aissatou → BTQ-002 (CANCELED, oct 2025 — annulé avant tout paiement)
+  // Contrat 3 : Aissatou → LOCAL-002 (CANCELED, oct 2025 — annulé avant tout paiement)
   const contract3 = await prisma.contract.upsert({
     where: { id: 3 },
     update: {},
@@ -211,7 +211,7 @@ async function main() {
     },
   });
 
-  // Contrat 4 : Fatoumata → BTQ-002 (ACTIVE, depuis fév 2026 — succède au contrat 3)
+  // Contrat 4 : Fatoumata → LOCAL-002 (ACTIVE, depuis fév 2026 — succède au contrat 3)
   const contract4 = await prisma.contract.upsert({
     where: { id: 4 },
     update: {},
@@ -224,7 +224,7 @@ async function main() {
     },
   });
 
-  // Contrat 5 : Mamadou Sylla → BTQ-003 (ACTIVE, depuis jan 2026)
+  // Contrat 5 : Mamadou Sylla → LOCAL-003 (ACTIVE, depuis jan 2026)
   const contract5 = await prisma.contract.upsert({
     where: { id: 5 },
     update: {},
@@ -237,7 +237,7 @@ async function main() {
     },
   });
 
-  // Contrat 6 : Ousmane → BTQ-004 (ACTIVE, depuis mars 2026 — 2e contrat, autre local)
+  // Contrat 6 : Ousmane → LOCAL-004 (ACTIVE, depuis mars 2026 — 2e contrat, autre local)
   const contract6 = await prisma.contract.upsert({
     where: { id: 6 },
     update: {},
