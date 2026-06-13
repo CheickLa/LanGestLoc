@@ -47,17 +47,14 @@ export function DataTable<T>({
   const isEmpty = data.length === 0;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-background">
-      {/* En-tête : titre + action */}
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-4 md:px-5">
-        <h1 className="text-lg font-semibold text-foreground">{title}</h1>
-        {action}
-      </div>
+    <div className="overflow-hidden rounded-2xl border border-border bg-background shadow-[var(--card-shadow)]">
+      {/* Titre de la table : le titre visible vit dans le header de page (évite le doublon) */}
+      <h2 className="sr-only">{title}</h2>
 
-      {/* Barre de recherche */}
-      {search ? (
-        <div className="px-4 pt-4 md:px-5">
-          <div className="flex max-w-sm items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground focus-within:border-primary">
+      {/* Barre d'outils : recherche + action principale */}
+      <div className="flex items-center justify-between gap-3 px-4 py-4 md:px-5">
+        {search ? (
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground focus-within:border-primary md:max-w-sm">
             <Search className="size-4 shrink-0" />
             <input
               type="search"
@@ -67,8 +64,11 @@ export function DataTable<T>({
               className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
             />
           </div>
-        </div>
-      ) : null}
+        ) : (
+          <span />
+        )}
+        {action}
+      </div>
 
       {/* Desktop : table */}
       <div className="hidden md:block">
@@ -82,7 +82,7 @@ export function DataTable<T>({
                   <th
                     key={column.key}
                     className={cn(
-                      "border-b border-border bg-muted/40 px-5 py-2.5 text-left text-xs font-normal text-muted-foreground",
+                      "border-y border-border bg-muted/60 px-5 py-2.5 text-left text-[11px] font-normal uppercase tracking-wide text-faint",
                       column.className,
                     )}
                   >
@@ -93,7 +93,10 @@ export function DataTable<T>({
             </thead>
             <tbody>
               {data.map((row) => (
-                <tr key={getRowKey(row)} className="last:border-0">
+                <tr
+                  key={getRowKey(row)}
+                  className="transition-colors last:border-0 hover:bg-muted/40"
+                >
                   {columns.map((column) => (
                     <td
                       key={column.key}
