@@ -15,8 +15,8 @@ async function authHeader(): Promise<Record<string, string>> {
 }
 
 /**
- * Lecture server-to-server (Server Components). Relaie le cookie httpOnly.
- * Lève une erreur si la réponse n'est pas OK (gérée par error.tsx / try/catch appelant).
+ * Lecture server-to-server (Server Components) qui relaie le cookie httpOnly
+ * Lève une erreur si la réponse n'est pas OK (gérée par error.tsx / try/catch appelant)
  */
 export async function backendFetch<T>(path: string): Promise<T> {
   const response = await fetch(`${backendUrl()}${path}`, {

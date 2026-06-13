@@ -33,7 +33,6 @@ export function LocalsPageClient({
   const [searchInput, setSearchInput] = useState(search);
   const [dialog, setDialog] = useState<DialogState>({ kind: "closed" });
 
-  // Recherche serveur : pousse l'URL (reset à la 1re page) après un court délai.
   useEffect(() => {
     if (searchInput.trim() === search) return;
     const handle = setTimeout(() => {

@@ -9,7 +9,6 @@ export type Column<T> = {
   key: string;
   header: ReactNode;
   cell: (row: T) => ReactNode;
-  /** Classes appliquées au <td> et au <th> (ex: alignement) */
   className?: string;
 };
 
@@ -31,7 +30,6 @@ export type DataTableProps<T> = {
     take: number;
     onPageChange: (nextSkip: number) => void;
   };
-  /** Affiché à la place des lignes quand data est vide */
   emptyState?: ReactNode;
 };
 

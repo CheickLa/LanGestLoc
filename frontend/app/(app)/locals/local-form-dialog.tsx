@@ -83,7 +83,6 @@ export function LocalFormDialog({
     defaultValues: { code: "", name: "" },
   });
 
-  // Réinitialiser le formulaire à chaque ouverture / changement de cible.
   useEffect(() => {
     if (open) {
       form.reset({ code: local?.code ?? "", name: local?.name ?? "" });
