@@ -30,7 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Locaux",
     href: "/locals",
     icon: Store,
-    description: "Gérer vos boutiques et leur occupation",
+    description: "Gérer vos locaux et leur occupation",
   },
   {
     label: "Locataires",
