@@ -16,7 +16,7 @@ export function AppShell({
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden md:gap-3 md:bg-muted/40 md:p-3">
+    <div className="flex h-screen overflow-hidden md:gap-3 md:bg-canvas md:p-3">
       {/* Backdrop mobile : masque le contenu et ferme le drawer au clic */}
       {menuOpen ? (
         <div
@@ -32,7 +32,7 @@ export function AppShell({
         onClose={() => setMenuOpen(false)}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden md:rounded-3xl md:border md:border-border md:bg-background md:shadow-sm">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-muted md:rounded-3xl md:border md:border-border md:shadow-sm">
         <AppHeader user={user} onMenuClick={() => setMenuOpen(true)} />
         <div className="flex-1 overflow-auto px-4 py-5 md:px-7 md:py-6">
           {children}
