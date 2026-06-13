@@ -15,15 +15,48 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   adminOnly?: boolean;
+  /** Sous-titre affiché dans le header de page (desktop) */
+  description?: string;
 };
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Locaux", href: "/locals", icon: Store },
-  { label: "Locataires", href: "/tenants", icon: Users },
-  { label: "Contrats", href: "/contracts", icon: FileText },
-  { label: "Paiements", href: "/payments", icon: CreditCard },
-  { label: "Utilisateurs", href: "/users", icon: UserCog, adminOnly: true },
+  {
+    label: "Tableau de bord",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    description: "Vue d'ensemble de votre activité",
+  },
+  {
+    label: "Locaux",
+    href: "/locals",
+    icon: Store,
+    description: "Gérer vos boutiques et leur occupation",
+  },
+  {
+    label: "Locataires",
+    href: "/tenants",
+    icon: Users,
+    description: "Gérer vos locataires",
+  },
+  {
+    label: "Contrats",
+    href: "/contracts",
+    icon: FileText,
+    description: "Gérer les contrats de location",
+  },
+  {
+    label: "Paiements",
+    href: "/payments",
+    icon: CreditCard,
+    description: "Suivi des paiements et reçus",
+  },
+  {
+    label: "Utilisateurs",
+    href: "/users",
+    icon: UserCog,
+    adminOnly: true,
+    description: "Gestion des comptes utilisateurs",
+  },
 ];
 
 /** Filtre les items selon le rôle (USER = lecture seule, pas de gestion utilisateurs) */
@@ -39,5 +72,11 @@ export function titleForPath(pathname: string): string {
   return (
     NAV_ITEMS.find((item) => isActive(pathname, item.href))?.label ??
     NAV_ITEMS[0].label
+  );
+}
+
+export function descriptionForPath(pathname: string): string {
+  return (
+    NAV_ITEMS.find((item) => isActive(pathname, item.href))?.description ?? ""
   );
 }

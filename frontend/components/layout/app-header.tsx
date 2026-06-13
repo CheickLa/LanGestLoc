@@ -7,8 +7,8 @@ import { LogOut, Menu } from "lucide-react";
 
 import { LOGOUT_PATH } from "@/lib/auth";
 import type { UserEntity } from "@/lib/auth-server";
-import { getInitials } from "@/lib/user";
-import { titleForPath } from "@/components/layout/nav-items";
+import { getInitials, roleLabel } from "@/lib/user";
+import { descriptionForPath, titleForPath } from "@/components/layout/nav-items";
 
 export function AppHeader({
   user,
@@ -19,9 +19,10 @@ export function AppHeader({
   onMenuClick?: () => void;
 }) {
   const pathname = usePathname();
+  const description = descriptionForPath(pathname);
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 bg-primary px-4 md:border-border md:bg-muted/50 md:px-7">
+    <header className="flex min-h-16 shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-primary px-4 py-2.5 md:border-border md:bg-card md:px-7 md:py-3">
       <div className="flex min-w-0 items-center gap-2.5">
         <button
           type="button"
@@ -41,11 +42,21 @@ export function AppHeader({
             className="size-8"
           />
         </Link>
-        <h1 className="truncate text-lg font-semibold tracking-tight text-white md:text-foreground">
-          {titleForPath(pathname)}
-        </h1>
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-semibold tracking-tight text-white md:text-2xl md:text-foreground">
+            {titleForPath(pathname)}
+          </h1>
+          {description ? (
+            <p className="hidden truncate text-sm text-muted-foreground md:block">
+              {description}
+            </p>
+          ) : null}
+        </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 md:gap-3">
+        <span className="hidden items-center rounded-full bg-primary/10 px-3 py-1 text-[13px] font-medium text-primary md:inline-flex">
+          {roleLabel(user.role)}
+        </span>
         <span className="grid size-8 place-items-center rounded-full border border-white/25 bg-white/15 text-xs text-white md:border-border md:bg-secondary md:text-muted-foreground">
           {getInitials(user.name)}
         </span>
