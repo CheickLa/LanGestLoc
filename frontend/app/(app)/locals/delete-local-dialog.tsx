@@ -63,7 +63,7 @@ export function DeleteLocalDialog({
           <AlertDialogTitle>Supprimer ce local ?</AlertDialogTitle>
           <AlertDialogDescription>
             {local
-              ? `Le local « ${local.name} » (${local.code}) sera définitivement supprimé. Cette action est irréversible.`
+              ? `Le local « ${local.name} » sera définitivement supprimé. Cette action est irréversible.`
               : ""}
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -72,12 +72,12 @@ export function DeleteLocalDialog({
             Annuler
           </AlertDialogCancel>
           <AlertDialogAction
+            variant="danger"
             disabled={mutation.isPending || !local}
             onClick={(event) => {
               event.preventDefault();
               if (local) mutation.mutate(local.id);
             }}
-            className="bg-danger text-danger-foreground hover:bg-danger/90"
           >
             {mutation.isPending ? (
               <>
