@@ -96,6 +96,7 @@ export function LocalsPageClient({
                 <button
                   type="button"
                   title="Modifier"
+                  aria-label="Modifier"
                   onClick={() => setDialog({ kind: "edit", local: row })}
                   className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 >
@@ -108,6 +109,7 @@ export function LocalsPageClient({
                       ? "Suppression bloquée (contrat lié)"
                       : "Supprimer"
                   }
+                  aria-label="Supprimer"
                   disabled={row.hasContracts}
                   onClick={() => setDialog({ kind: "delete", local: row })}
                   className="grid size-8 place-items-center rounded-lg text-danger-foreground transition-colors hover:bg-danger disabled:cursor-not-allowed disabled:text-muted-foreground/30 disabled:hover:bg-transparent"

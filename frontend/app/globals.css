@@ -2,6 +2,10 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Neutralise le mode sombre : rattache les utilitaires `dark:` (encore présents
+   dans les primitives shadcn) à une classe `.dark` jamais appliquée inertes
+   NE PAS supprimer : sans cette ligne, Tailwind v4 réactiverait `dark:` via
+   prefers-color-scheme et un thème sombre partiel réapparaîtrait selon l'OS. */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
