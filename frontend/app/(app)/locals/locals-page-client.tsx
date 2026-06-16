@@ -110,7 +110,7 @@ export function LocalsPageClient({
                   }
                   disabled={row.hasContracts}
                   onClick={() => setDialog({ kind: "delete", local: row })}
-                  className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:text-muted-foreground/30 disabled:hover:bg-transparent"
+                  className="grid size-8 place-items-center rounded-lg text-danger-foreground transition-colors hover:bg-danger disabled:cursor-not-allowed disabled:text-muted-foreground/30 disabled:hover:bg-transparent"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -154,7 +154,7 @@ export function LocalsPageClient({
               type="button"
               disabled={row.hasContracts}
               onClick={() => setDialog({ kind: "delete", local: row })}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-danger-foreground/25 px-3 py-1.5 text-xs text-danger-foreground disabled:cursor-not-allowed disabled:border-border disabled:text-muted-foreground disabled:opacity-50"
             >
               <Trash2 className="size-3.5" /> Supprimer
             </button>
