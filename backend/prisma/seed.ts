@@ -118,6 +118,7 @@ async function main() {
       activity: 'Vente de tissus',
       phone: '+224620000001',
       dateOfBirth: new Date('1985-03-15'),
+      birthPlace: 'Conakry',
       idNumber: 'GN-ID-000001',
     },
     {
@@ -125,6 +126,7 @@ async function main() {
       activity: 'Cosmétiques',
       phone: '+224620000002',
       dateOfBirth: new Date('1990-07-22'),
+      birthPlace: 'Kindia',
       idNumber: 'GN-ID-000002',
     },
     {
@@ -132,6 +134,7 @@ async function main() {
       activity: 'Alimentation générale',
       phone: '+224620000003',
       dateOfBirth: new Date('1978-11-10'),
+      birthPlace: 'Labé',
       idNumber: 'GN-ID-000003',
     },
     {
@@ -139,6 +142,7 @@ async function main() {
       activity: 'Téléphonie mobile',
       phone: '+224620000004',
       dateOfBirth: new Date('1992-01-28'),
+      birthPlace: 'Kankan',
       idNumber: 'GN-ID-000004',
     },
     {
@@ -146,6 +150,7 @@ async function main() {
       activity: 'Quincaillerie',
       phone: '+224620000005',
       dateOfBirth: new Date('1980-06-05'),
+      birthPlace: 'Boké',
       idNumber: 'GN-ID-000005',
     },
   ];

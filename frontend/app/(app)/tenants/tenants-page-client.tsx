@@ -89,12 +89,9 @@ export function TenantsPageClient({
     {
       key: "birthPlace",
       header: "Lieu de naissance",
-      cell: (row) =>
-        row.birthPlace ? (
-          <span className="text-muted-foreground">{row.birthPlace}</span>
-        ) : (
-          <span className="text-muted-foreground/50">—</span>
-        ),
+      cell: (row) => (
+        <span className="text-muted-foreground">{row.birthPlace}</span>
+      ),
     },
     {
       key: "idNumber",
@@ -165,7 +162,7 @@ export function TenantsPageClient({
           </div>
           <div className="flex justify-between gap-2">
             <dt className="text-muted-foreground">Lieu de naissance</dt>
-            <dd className="text-foreground">{row.birthPlace ?? "—"}</dd>
+            <dd className="text-foreground">{row.birthPlace}</dd>
           </div>
           <div className="flex justify-between gap-2">
             <dt className="text-muted-foreground">Pièce</dt>
