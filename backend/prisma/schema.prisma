@@ -90,6 +90,7 @@ model Tenant {
   activity    String?
   phone       String   @unique
   dateOfBirth DateTime
+  birthPlace  String?
   idNumber    String   @unique
   createdAt   DateTime @default(now())
 
