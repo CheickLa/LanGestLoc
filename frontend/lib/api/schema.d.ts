@@ -99,7 +99,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Récupérer tous les locataires */
+        /** Récupérer tous les locataires (recherche + pagination) */
         get: operations["TenantsController_findAll"];
         put?: never;
         /** Créer un nouveau locataire (ADMIN) */
@@ -618,6 +618,8 @@ export interface components {
             phone: string;
             /** @example 1990-05-15 */
             dateOfBirth: string;
+            /** @example Conakry */
+            birthPlace: string;
             /** @example 234567890 */
             idNumber: string;
         };
@@ -635,6 +637,8 @@ export interface components {
              * @example 1990-05-15T00:00:00.000Z
              */
             dateOfBirth: string;
+            /** @example Conakry */
+            birthPlace: string | null;
             /** @example 234567890 */
             idNumber: string;
             /**
@@ -642,6 +646,35 @@ export interface components {
              * @example 2026-01-15T10:30:00.000Z
              */
             createdAt: string;
+        };
+        TenantListItemEntity: {
+            /** @example 1 */
+            id: number;
+            /** @example Aminata Barry */
+            name: string;
+            /** @example Commerçant */
+            activity: string | null;
+            /** @example +224612345678 */
+            phone: string;
+            /**
+             * Format: date-time
+             * @example 1990-05-15T00:00:00.000Z
+             */
+            dateOfBirth: string;
+            /** @example Conakry */
+            birthPlace: string | null;
+            /** @example 234567890 */
+            idNumber: string;
+            /**
+             * Format: date-time
+             * @example 2026-01-15T10:30:00.000Z
+             */
+            createdAt: string;
+            /**
+             * @description Au moins un contrat rattaché → suppression bloquée
+             * @example true
+             */
+            hasContracts: boolean;
         };
         UpdateTenantDto: {
             /** @example Aminata Barry */
@@ -652,6 +685,8 @@ export interface components {
             phone?: string;
             /** @example 1990-05-15 */
             dateOfBirth?: string;
+            /** @example Conakry */
+            birthPlace?: string;
             /** @example 234567890 */
             idNumber?: string;
         };
@@ -1491,6 +1526,8 @@ export interface operations {
                 skip?: number;
                 /** @description Nombre d'éléments à retourner */
                 take?: number;
+                /** @description Recherche par nom, téléphone, pièce ou activité (insensible à la casse) */
+                search?: string;
             };
             header?: never;
             path?: never;
@@ -1504,7 +1541,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedDto"] & {
-                        items?: components["schemas"]["TenantEntity"][];
+                        items?: components["schemas"]["TenantListItemEntity"][];
                     };
                 };
             };
