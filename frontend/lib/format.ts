@@ -9,3 +9,13 @@ export function formatGNF(value: number): string {
     maximumFractionDigits: 0,
   }).format(value);
 }
+
+/** Formate une date ISO en JJ/MM/AAAA (UTC pour éviter le décalage de jour). */
+export function formatDate(value: string | Date): string {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(value));
+}
