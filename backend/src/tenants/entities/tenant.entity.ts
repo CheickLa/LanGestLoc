@@ -16,6 +16,9 @@ export class TenantEntity {
   @ApiProperty({ example: '1990-05-15T00:00:00.000Z' })
   dateOfBirth: Date;
 
+  @ApiProperty({ example: 'Conakry', nullable: true })
+  birthPlace: string | null;
+
   @ApiProperty({ example: '234567890' })
   idNumber: string;
 

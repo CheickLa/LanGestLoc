@@ -25,6 +25,12 @@ export class CreateTenantDto {
     @IsNotEmpty({ message: "La date de naissance est requise" })
     dateOfBirth: string;
 
+    @ApiProperty({ example: "Conakry" })
+    @IsString({ message: "Le lieu de naissance doit être une chaîne de caractères" })
+    @IsNotEmpty({ message: "Le lieu de naissance est requis" })
+    @MinLength(2, { message: "Le lieu de naissance doit contenir au moins 2 caractères" })
+    birthPlace: string;
+
     @ApiProperty({ example: "234567890" })
     @IsString()
     @IsNotEmpty({ message: "Le numéro d'identité est requis" })
