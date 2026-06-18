@@ -25,3 +25,11 @@ export class TenantEntity {
   @ApiProperty({ example: '2026-01-15T10:30:00.000Z' })
   createdAt: Date;
 }
+
+export class TenantListItemEntity extends TenantEntity {
+  @ApiProperty({
+    example: true,
+    description: 'Au moins un contrat rattaché → suppression bloquée',
+  })
+  hasContracts: boolean;
+}

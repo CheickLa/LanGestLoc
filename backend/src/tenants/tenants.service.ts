@@ -1,8 +1,14 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { PrismaService } from '@/prisma/prisma.service';
-import { PaginationDto } from '@/common/dto/pagination.dto';
+import { Prisma } from '@generated/prisma/client';
+import { FindTenantsQueryDto } from './dto/find-tenants-query.dto';
 
 @Injectable()
 export class TenantsService {
@@ -10,20 +16,30 @@ export class TenantsService {
 
   async create(createTenantDto: CreateTenantDto) {
     if (new Date(createTenantDto.dateOfBirth) >= new Date()) {
-      throw new BadRequestException('La date de naissance doit être dans le passé');
+      throw new BadRequestException(
+        'La date de naissance doit être dans le passé',
+      );
     }
 
     const [existingByIdNumber, existingByPhone] = await Promise.all([
-      this.prisma.tenant.findUnique({ where: { idNumber: createTenantDto.idNumber } }),
-      this.prisma.tenant.findUnique({ where: { phone: createTenantDto.phone } }),
+      this.prisma.tenant.findUnique({
+        where: { idNumber: createTenantDto.idNumber },
+      }),
+      this.prisma.tenant.findUnique({
+        where: { phone: createTenantDto.phone },
+      }),
     ]);
 
     if (existingByIdNumber) {
-      throw new ConflictException(`Un locataire avec le numéro d'identité ${createTenantDto.idNumber} existe déjà`);
+      throw new ConflictException(
+        `Un locataire avec le numéro d'identité ${createTenantDto.idNumber} existe déjà`,
+      );
     }
 
     if (existingByPhone) {
-      throw new ConflictException(`Un locataire avec le numéro de téléphone ${createTenantDto.phone} existe déjà`);
+      throw new ConflictException(
+        `Un locataire avec le numéro de téléphone ${createTenantDto.phone} existe déjà`,
+      );
     }
 
     return this.prisma.tenant.create({
@@ -34,11 +50,33 @@ export class TenantsService {
     });
   }
 
-  async findAll({ skip, take }: PaginationDto) {
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.tenant.findMany({ skip, take }),
-      this.prisma.tenant.count(),
+  async findAll({ skip, take, search }: FindTenantsQueryDto) {
+    const where: Prisma.TenantWhereInput = search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search, mode: 'insensitive' } },
+            { idNumber: { contains: search, mode: 'insensitive' } },
+            { activity: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+
+    const [tenants, total] = await this.prisma.$transaction([
+      this.prisma.tenant.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { name: 'asc' },
+        include: { _count: { select: { contracts: true } } },
+      }),
+      this.prisma.tenant.count({ where }),
     ]);
+
+    const items = tenants.map(({ _count, ...tenant }) => ({
+      ...tenant,
+      hasContracts: _count.contracts > 0,
+    }));
 
     return { items, total, skip, take };
   }
@@ -58,21 +96,34 @@ export class TenantsService {
   async update(id: number, updateTenantDto: UpdateTenantDto) {
     await this.findOne(id);
 
-    if (updateTenantDto.dateOfBirth && new Date(updateTenantDto.dateOfBirth) >= new Date()) {
-      throw new BadRequestException('La date de naissance doit être dans le passé');
+    if (
+      updateTenantDto.dateOfBirth &&
+      new Date(updateTenantDto.dateOfBirth) >= new Date()
+    ) {
+      throw new BadRequestException(
+        'La date de naissance doit être dans le passé',
+      );
     }
 
     if (updateTenantDto.idNumber) {
-      const existing = await this.prisma.tenant.findUnique({ where: { idNumber: updateTenantDto.idNumber } });
+      const existing = await this.prisma.tenant.findUnique({
+        where: { idNumber: updateTenantDto.idNumber },
+      });
       if (existing && existing.id !== id) {
-        throw new ConflictException(`Un locataire avec le numéro d'identité ${updateTenantDto.idNumber} existe déjà`);
+        throw new ConflictException(
+          `Un locataire avec le numéro d'identité ${updateTenantDto.idNumber} existe déjà`,
+        );
       }
     }
 
     if (updateTenantDto.phone) {
-      const existing = await this.prisma.tenant.findUnique({ where: { phone: updateTenantDto.phone } });
+      const existing = await this.prisma.tenant.findUnique({
+        where: { phone: updateTenantDto.phone },
+      });
       if (existing && existing.id !== id) {
-        throw new ConflictException(`Un locataire avec le numéro de téléphone ${updateTenantDto.phone} existe déjà`);
+        throw new ConflictException(
+          `Un locataire avec le numéro de téléphone ${updateTenantDto.phone} existe déjà`,
+        );
       }
     }
 
@@ -80,7 +131,9 @@ export class TenantsService {
       where: { id },
       data: {
         ...updateTenantDto,
-        ...(updateTenantDto.dateOfBirth && { dateOfBirth: new Date(updateTenantDto.dateOfBirth) }),
+        ...(updateTenantDto.dateOfBirth && {
+          dateOfBirth: new Date(updateTenantDto.dateOfBirth),
+        }),
       },
     });
   }
@@ -96,7 +149,9 @@ export class TenantsService {
     }
 
     if (tenant.contracts.length > 0) {
-      throw new ConflictException(`Impossible de supprimer le locataire avec l'ID ${id} car il est lié à des contrats existants`);
+      throw new ConflictException(
+        `Impossible de supprimer le locataire avec l'ID ${id} car il est lié à des contrats existants`,
+      );
     }
 
     return this.prisma.tenant.delete({
