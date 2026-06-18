@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { PrismaService } from '@/prisma/prisma.service';
 
@@ -34,6 +38,7 @@ describe('TenantsService', () => {
     name: 'Jean Dupont',
     phone: '0601020304',
     dateOfBirth: '1990-01-15',
+    birthPlace: 'Conakry',
     idNumber: 'ID12345',
     activity: 'Commerce',
   };
@@ -58,7 +63,9 @@ describe('TenantsService', () => {
     it('should throw BadRequestException when dateOfBirth is in the future', async () => {
       const futureDto = { ...tenantDto, dateOfBirth: '2099-01-01' };
 
-      await expect(service.create(futureDto)).rejects.toThrow(BadRequestException);
+      await expect(service.create(futureDto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw ConflictException when idNumber already exists', async () => {
@@ -66,7 +73,9 @@ describe('TenantsService', () => {
         .mockResolvedValueOnce(tenantEntity) // idNumber exists
         .mockResolvedValueOnce(null); // phone free
 
-      await expect(service.create(tenantDto)).rejects.toThrow(ConflictException);
+      await expect(service.create(tenantDto)).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('should throw ConflictException when phone already exists', async () => {
@@ -74,18 +83,69 @@ describe('TenantsService', () => {
         .mockResolvedValueOnce(null) // idNumber free
         .mockResolvedValueOnce(tenantEntity); // phone exists
 
-      await expect(service.create(tenantDto)).rejects.toThrow(ConflictException);
+      await expect(service.create(tenantDto)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
   describe('findAll', () => {
-    it('should return paginated tenants', async () => {
-      mockPrisma.tenant.findMany.mockResolvedValue([tenantEntity]);
+    it('should return paginated tenants with hasContracts=false when no contracts', async () => {
+      mockPrisma.tenant.findMany.mockResolvedValue([
+        { ...tenantEntity, _count: { contracts: 0 } },
+      ]);
       mockPrisma.tenant.count.mockResolvedValue(1);
 
       const result = await service.findAll({ skip: 0, take: 20 });
 
-      expect(result).toEqual({ items: [tenantEntity], total: 1, skip: 0, take: 20 });
+      expect(result).toEqual({
+        items: [{ ...tenantEntity, hasContracts: false }],
+        total: 1,
+        skip: 0,
+        take: 20,
+      });
+    });
+
+    it('should derive hasContracts=true when tenant has contracts', async () => {
+      mockPrisma.tenant.findMany.mockResolvedValue([
+        { ...tenantEntity, _count: { contracts: 2 } },
+      ]);
+      mockPrisma.tenant.count.mockResolvedValue(1);
+
+      const result = await service.findAll({ skip: 0, take: 20 });
+
+      expect(result.items[0].hasContracts).toBe(true);
+    });
+
+    it('should build an OR search filter on name/phone/idNumber/activity', async () => {
+      mockPrisma.tenant.findMany.mockResolvedValue([]);
+      mockPrisma.tenant.count.mockResolvedValue(0);
+
+      await service.findAll({ skip: 0, take: 20, search: 'Aminata' });
+
+      expect(mockPrisma.tenant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              { name: { contains: 'Aminata', mode: 'insensitive' } },
+              { phone: { contains: 'Aminata', mode: 'insensitive' } },
+              { idNumber: { contains: 'Aminata', mode: 'insensitive' } },
+              { activity: { contains: 'Aminata', mode: 'insensitive' } },
+            ],
+          },
+        }),
+      );
+    });
+
+    it('should use an empty where when no search is provided', async () => {
+      mockPrisma.tenant.findMany.mockResolvedValue([]);
+      mockPrisma.tenant.count.mockResolvedValue(0);
+
+      await service.findAll({ skip: 0, take: 20 });
+
+      expect(mockPrisma.tenant.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
     });
   });
 
@@ -108,7 +168,10 @@ describe('TenantsService', () => {
   describe('update', () => {
     it('should update a tenant', async () => {
       mockPrisma.tenant.findUnique.mockResolvedValue(tenantEntity);
-      mockPrisma.tenant.update.mockResolvedValue({ ...tenantEntity, name: 'Updated' });
+      mockPrisma.tenant.update.mockResolvedValue({
+        ...tenantEntity,
+        name: 'Updated',
+      });
 
       const result = await service.update(1, { name: 'Updated' });
 
@@ -118,13 +181,17 @@ describe('TenantsService', () => {
     it('should throw NotFoundException when tenant does not exist', async () => {
       mockPrisma.tenant.findUnique.mockResolvedValue(null);
 
-      await expect(service.update(999, { name: 'X' })).rejects.toThrow(NotFoundException);
+      await expect(service.update(999, { name: 'X' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw BadRequestException when updating dateOfBirth to future', async () => {
       mockPrisma.tenant.findUnique.mockResolvedValue(tenantEntity);
 
-      await expect(service.update(1, { dateOfBirth: '2099-01-01' })).rejects.toThrow(BadRequestException);
+      await expect(
+        service.update(1, { dateOfBirth: '2099-01-01' }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw ConflictException when updating to existing idNumber', async () => {
@@ -132,7 +199,9 @@ describe('TenantsService', () => {
         .mockResolvedValueOnce(tenantEntity) // findOne check
         .mockResolvedValueOnce({ ...tenantEntity, id: 2 }); // idNumber conflict
 
-      await expect(service.update(1, { idNumber: 'EXISTING' })).rejects.toThrow(ConflictException);
+      await expect(service.update(1, { idNumber: 'EXISTING' })).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('should throw ConflictException when updating to existing phone', async () => {
@@ -140,7 +209,9 @@ describe('TenantsService', () => {
         .mockResolvedValueOnce(tenantEntity) // findOne check
         .mockResolvedValueOnce({ ...tenantEntity, id: 2 }); // phone conflict
 
-      await expect(service.update(1, { phone: '9999999' })).rejects.toThrow(ConflictException);
+      await expect(service.update(1, { phone: '9999999' })).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('should allow updating idNumber to the same value', async () => {
@@ -157,12 +228,17 @@ describe('TenantsService', () => {
 
   describe('remove', () => {
     it('should delete a tenant with no contracts', async () => {
-      mockPrisma.tenant.findUnique.mockResolvedValue({ ...tenantEntity, contracts: [] });
+      mockPrisma.tenant.findUnique.mockResolvedValue({
+        ...tenantEntity,
+        contracts: [],
+      });
       mockPrisma.tenant.delete.mockResolvedValue(tenantEntity);
 
       const result = await service.remove(1);
 
-      expect(mockPrisma.tenant.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(mockPrisma.tenant.delete).toHaveBeenCalledWith({
+        where: { id: 1 },
+      });
       expect(result).toEqual(tenantEntity);
     });
 
@@ -173,7 +249,10 @@ describe('TenantsService', () => {
     });
 
     it('should throw ConflictException when tenant has contracts', async () => {
-      mockPrisma.tenant.findUnique.mockResolvedValue({ ...tenantEntity, contracts: [{ id: 1 }] });
+      mockPrisma.tenant.findUnique.mockResolvedValue({
+        ...tenantEntity,
+        contracts: [{ id: 1 }],
+      });
 
       await expect(service.remove(1)).rejects.toThrow(ConflictException);
     });
