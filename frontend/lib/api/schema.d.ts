@@ -638,7 +638,7 @@ export interface components {
              */
             dateOfBirth: string;
             /** @example Conakry */
-            birthPlace: string | null;
+            birthPlace: string;
             /** @example 234567890 */
             idNumber: string;
             /**
@@ -662,7 +662,7 @@ export interface components {
              */
             dateOfBirth: string;
             /** @example Conakry */
-            birthPlace: string | null;
+            birthPlace: string;
             /** @example 234567890 */
             idNumber: string;
             /**

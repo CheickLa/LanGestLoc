@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "Tenant" ADD COLUMN     "birthPlace" TEXT;
+ALTER TABLE "Tenant" ADD COLUMN     "birthPlace" TEXT NOT NULL;
