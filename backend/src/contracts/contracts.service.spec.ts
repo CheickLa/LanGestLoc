@@ -3,10 +3,11 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { ContractsService } from './contracts.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentsService } from '@/payments/payments.service';
+import { ContractDocumentsService } from './contract-documents.service';
 import { ContractStatus, PaymentMethod, PaymentType, Prisma, RentDueStatus } from '@generated/prisma/client';
 
 const mockTx = {
-  contract: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn() },
+  contract: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn(), findUniqueOrThrow: jest.fn(), findFirst: jest.fn() },
   rent: { create: jest.fn() },
   rentDue: { deleteMany: jest.fn() },
   deposit: { create: jest.fn(), update: jest.fn(), delete: jest.fn(), deleteMany: jest.fn(), findUnique: jest.fn() },
@@ -26,6 +27,10 @@ const mockPaymentsService = {
   generateReceiptSafe: jest.fn(),
 };
 
+const mockContractDocumentsService = {
+  generateSafe: jest.fn(),
+};
+
 describe('ContractsService', () => {
   let service: ContractsService;
 
@@ -43,6 +48,7 @@ describe('ContractsService', () => {
         ContractsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PaymentsService, useValue: mockPaymentsService },
+        { provide: ContractDocumentsService, useValue: mockContractDocumentsService },
       ],
     }).compile();
 
@@ -89,6 +95,7 @@ describe('ContractsService', () => {
         }),
       );
       expect(mockPaymentsService.generateReceiptSafe).toHaveBeenCalledWith(55);
+      expect(mockContractDocumentsService.generateSafe).toHaveBeenCalledWith(1);
     });
 
     it('should throw BadRequestException when endDate is not after startDate', async () => {
@@ -187,6 +194,29 @@ describe('ContractsService', () => {
 
       await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
     });
+
+    it('inclut le document de bail dans le détail', async () => {
+      const document = {
+        id: 1,
+        contractId: 1,
+        documentNo: 'BAIL-2026-00001',
+        s3Key: 'contracts/2026/BAIL-2026-00001.pdf',
+      };
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        id: 1,
+        rents: [{ id: 1, effectiveTo: null }],
+        document,
+      });
+
+      const result = await service.findOne(1);
+
+      expect(result.document).toEqual(document);
+      expect(mockPrisma.contract.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({ document: true }),
+        }),
+      );
+    });
   });
 
   describe('terminate', () => {
@@ -205,8 +235,12 @@ describe('ContractsService', () => {
     it('should terminate a contract, clean future rent dues and refund deposit', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue(contract);
       mockPrisma.rentDue.count.mockResolvedValue(0);
-      const terminated = { id: 1, status: ContractStatus.TERMINATED };
-      mockTx.contract.findUnique.mockResolvedValue(terminated);
+      const terminated = {
+        id: 1,
+        status: ContractStatus.TERMINATED,
+        rents: [{ id: 5, effectiveTo: null }],
+      };
+      mockTx.contract.findUniqueOrThrow.mockResolvedValue(terminated);
       mockPaymentsService.createDepositRefund.mockResolvedValue({ id: 42 });
 
       const result = await service.terminate(1, refundDto, 7);
@@ -231,7 +265,7 @@ describe('ContractsService', () => {
         }),
       );
       expect(mockPaymentsService.generateReceiptSafe).toHaveBeenCalledWith(42);
-      expect(result).toEqual(terminated);
+      expect(result).toEqual({ ...terminated, activeRent: terminated.rents[0] });
     });
 
     it('should throw ConflictException when unpaid rent dues remain before endDate', async () => {

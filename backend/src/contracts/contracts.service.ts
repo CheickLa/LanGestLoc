@@ -4,6 +4,7 @@ import { TerminateContractDto } from './dto/terminate-contract.dto';
 import { CancelContractDto } from './dto/cancel-contract.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentsService } from '@/payments/payments.service';
+import { ContractDocumentsService } from './contract-documents.service';
 import { PaginationDto } from '@/common/dto/pagination.dto';
 import { ContractStatus, PaymentType, Prisma, RentDueStatus } from '@generated/prisma/client';
 
@@ -12,6 +13,7 @@ export class ContractsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paymentsService: PaymentsService,
+    private readonly contractDocumentsService: ContractDocumentsService,
   ) {}
 
   async create(dto: CreateContractDto, userId: number) {
@@ -81,6 +83,7 @@ export class ContractsService {
       });
 
       await this.paymentsService.generateReceiptSafe(depositPayment.id);
+      await this.contractDocumentsService.generateSafe(contract.id);
 
       return contract;
     } catch (error) {
@@ -125,6 +128,7 @@ export class ContractsService {
           orderBy: { effectiveFrom: 'asc' },
         },
         deposit: true,
+        document: true,
       },
     });
 

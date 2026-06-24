@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ContractsController } from './contracts.controller';
 import { ContractsService } from './contracts.service';
+import { ContractDocumentsService } from './contract-documents.service';
 import { PaymentMethod, Role } from '@generated/prisma/client';
+import type { Response } from 'express';
 
 const mockContractsService = {
   create: jest.fn(),
@@ -11,13 +13,20 @@ const mockContractsService = {
   cancel: jest.fn(),
 };
 
+const mockContractDocumentsService = {
+  download: jest.fn(),
+};
+
 describe('ContractsController', () => {
   let controller: ContractsController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ContractsController],
-      providers: [{ provide: ContractsService, useValue: mockContractsService }],
+      providers: [
+        { provide: ContractsService, useValue: mockContractsService },
+        { provide: ContractDocumentsService, useValue: mockContractDocumentsService },
+      ],
     }).compile();
 
     controller = module.get<ContractsController>(ContractsController);
@@ -97,6 +106,31 @@ describe('ContractsController', () => {
 
       expect(mockContractsService.cancel).toHaveBeenCalledWith(1, dto, 7);
       expect(result.status).toBe('CANCELED');
+    });
+  });
+
+  describe('GET /contracts/:id/document/download', () => {
+    it('stream le PDF du bail avec les bons en-têtes', async () => {
+      const buffer = Buffer.from('fake-pdf');
+      mockContractDocumentsService.download.mockResolvedValue({
+        buffer,
+        documentNo: 'BAIL-2026-00001',
+      });
+
+      const mockRes = {
+        set: jest.fn(),
+        end: jest.fn(),
+      } as unknown as Response;
+
+      await controller.downloadDocument(1, mockRes);
+
+      expect(mockContractDocumentsService.download).toHaveBeenCalledWith(1);
+      expect(mockRes.set).toHaveBeenCalledWith({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': 'attachment; filename="BAIL-2026-00001.pdf"',
+        'Content-Length': buffer.length,
+      });
+      expect(mockRes.end).toHaveBeenCalledWith(buffer);
     });
   });
 });

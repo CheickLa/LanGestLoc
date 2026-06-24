@@ -164,6 +164,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/contracts/{id}/document/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Télécharger le contrat de bail (PDF) */
+        get: operations["ContractsController_downloadDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/contracts/{id}/terminate": {
         parameters: {
             query?: never;
@@ -840,6 +857,21 @@ export interface components {
              */
             refundedAt: string | null;
         };
+        ContractDocumentEntity: {
+            /** @example 1 */
+            id: number;
+            /** @example 1 */
+            contractId: number;
+            /** @example BAIL-2026-00001 */
+            documentNo: string;
+            /** @example contracts/2026/BAIL-2026-00001.pdf */
+            s3Key: string;
+            /**
+             * Format: date-time
+             * @example 2026-01-15T10:30:00.000Z
+             */
+            createdAt: string;
+        };
         ContractDetailEntity: {
             /** @example 1 */
             id: number;
@@ -879,6 +911,7 @@ export interface components {
             rents: components["schemas"]["RentEntity"][];
             deposit: components["schemas"]["DepositEntity"] | null;
             activeRent: components["schemas"]["RentEntity"] | null;
+            document: components["schemas"]["ContractDocumentEntity"] | null;
         };
         TerminateContractDto: {
             /** @example 2026-12-31 */
@@ -1863,6 +1896,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContractDetailEntity"];
+                };
+            };
+            /** @description Token manquant ou invalide */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Contrat non trouvé */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ContractsController_downloadDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID du contrat */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fichier PDF du contrat de bail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
                 };
             };
             /** @description Token manquant ou invalide */
