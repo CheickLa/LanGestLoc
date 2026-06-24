@@ -25,7 +25,7 @@ describe('TenantsController', () => {
 
   describe('POST /tenants', () => {
     it('should call service.create and return result', async () => {
-      const dto = { name: 'Jean', phone: '060102', dateOfBirth: '1990-01-15', idNumber: 'ID123' };
+      const dto = { name: 'Jean', phone: '060102', dateOfBirth: '1990-01-15', birthPlace: 'Conakry', idNumber: 'ID123' };
       mockTenantsService.create.mockResolvedValue({ id: 1, ...dto });
 
       const result = await controller.create(dto);
