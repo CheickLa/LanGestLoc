@@ -12,7 +12,6 @@ const mockPrisma = {
   user: {
     create: jest.fn(),
     findUnique: jest.fn(),
-    findUniqueOrThrow: jest.fn(),
   },
 };
 
@@ -149,21 +148,21 @@ describe('AuthService', () => {
         id: 1, name: 'John', email: 'john@test.com',
         role: Role.USER, createdAt: new Date(),
       };
-      mockPrisma.user.findUniqueOrThrow.mockResolvedValue(profile);
+      mockPrisma.user.findUnique.mockResolvedValue(profile);
 
       const result = await service.getProfile(1);
 
-      expect(mockPrisma.user.findUniqueOrThrow).toHaveBeenCalledWith({
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 1 },
         select: { id: true, name: true, email: true, role: true, createdAt: true },
       });
       expect(result).toEqual(profile);
     });
 
-    it('should throw if user not found', async () => {
-      mockPrisma.user.findUniqueOrThrow.mockRejectedValue(new Error('Not found'));
+    it('should throw UnauthorizedException if user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.getProfile(999)).rejects.toThrow('Not found');
+      await expect(service.getProfile(999)).rejects.toThrow(UnauthorizedException);
     });
   });
 });
