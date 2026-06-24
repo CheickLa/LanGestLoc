@@ -2,10 +2,10 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { CreateContractDto } from './dto/create-contract.dto';
 import { TerminateContractDto } from './dto/terminate-contract.dto';
 import { CancelContractDto } from './dto/cancel-contract.dto';
+import { FindContractsQueryDto } from './dto/find-contracts-query.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentsService } from '@/payments/payments.service';
 import { ContractDocumentsService } from './contract-documents.service';
-import { PaginationDto } from '@/common/dto/pagination.dto';
 import { ContractStatus, PaymentType, Prisma, RentDueStatus } from '@generated/prisma/client';
 
 @Injectable()
@@ -94,9 +94,19 @@ export class ContractsService {
     }
   }
 
-  async findAll({ skip, take }: PaginationDto) {
+  async findAll({ skip, take, search }: FindContractsQueryDto) {
+    const where: Prisma.ContractWhereInput = search
+      ? {
+          OR: [
+            { local: { name: { contains: search, mode: 'insensitive' } } },
+            { tenant: { name: { contains: search, mode: 'insensitive' } } },
+          ],
+        }
+      : {};
+
     const [contracts, total] = await this.prisma.$transaction([
       this.prisma.contract.findMany({
+        where,
         skip,
         take,
         include: {
@@ -107,7 +117,7 @@ export class ContractsService {
           },
         },
       }),
-      this.prisma.contract.count(),
+      this.prisma.contract.count({ where }),
     ]);
 
     const items = contracts.map(({ rents, ...contract }) => ({
