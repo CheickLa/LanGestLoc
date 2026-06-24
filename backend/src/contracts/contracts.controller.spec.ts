@@ -63,6 +63,18 @@ describe('ContractsController', () => {
       expect(mockContractsService.findAll).toHaveBeenCalledWith({ skip: 0, take: 20 });
       expect(result).toEqual(paginated);
     });
+
+    it('should forward the search query to the service', async () => {
+      mockContractsService.findAll.mockResolvedValue({ items: [], total: 0, skip: 0, take: 20 });
+
+      await controller.findAll({ skip: 0, take: 20, search: 'centre' });
+
+      expect(mockContractsService.findAll).toHaveBeenCalledWith({
+        skip: 0,
+        take: 20,
+        search: 'centre',
+      });
+    });
   });
 
   describe('GET /contracts/:id', () => {

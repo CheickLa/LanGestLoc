@@ -13,9 +13,9 @@ import { Response } from 'express';
 import { Role } from '@generated/prisma/client';
 import { ContractsService } from './contracts.service';
 import { ContractDocumentsService } from './contract-documents.service';
-import { PaginationDto } from '@/common/dto/pagination.dto';
 import { ApiPaginatedResponse } from '@/common/decorators/api-paginated-response.decorator';
 import { CreateContractDto } from './dto/create-contract.dto';
+import { FindContractsQueryDto } from './dto/find-contracts-query.dto';
 import { TerminateContractDto } from './dto/terminate-contract.dto';
 import { CancelContractDto } from './dto/cancel-contract.dto';
 import {
@@ -54,8 +54,8 @@ export class ContractsController {
   @ApiOperation({ summary: 'Récupérer tous les contrats' })
   @ApiPaginatedResponse(ContractListItemEntity)
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  findAll(@Query() pagination: PaginationDto) {
-    return this.contractsService.findAll(pagination);
+  findAll(@Query() query: FindContractsQueryDto) {
+    return this.contractsService.findAll(query);
   }
 
   @Get(':id')

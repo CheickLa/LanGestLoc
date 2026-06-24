@@ -175,6 +175,36 @@ describe('ContractsService', () => {
 
       expect(result.items[0].activeRent).toBeNull();
     });
+
+    it('filtre par nom de local ou de locataire quand search est fourni', async () => {
+      mockPrisma.contract.findMany.mockResolvedValue([]);
+      mockPrisma.contract.count.mockResolvedValue(0);
+
+      await service.findAll({ skip: 0, take: 20, search: 'centre' });
+
+      const expectedWhere = {
+        OR: [
+          { local: { name: { contains: 'centre', mode: 'insensitive' } } },
+          { tenant: { name: { contains: 'centre', mode: 'insensitive' } } },
+        ],
+      };
+      expect(mockPrisma.contract.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expectedWhere }),
+      );
+      expect(mockPrisma.contract.count).toHaveBeenCalledWith({ where: expectedWhere });
+    });
+
+    it('ne filtre pas (where vide) quand search est absent', async () => {
+      mockPrisma.contract.findMany.mockResolvedValue([]);
+      mockPrisma.contract.count.mockResolvedValue(0);
+
+      await service.findAll({ skip: 0, take: 20 });
+
+      expect(mockPrisma.contract.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+      expect(mockPrisma.contract.count).toHaveBeenCalledWith({ where: {} });
+    });
   });
 
   describe('findOne', () => {

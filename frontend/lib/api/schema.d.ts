@@ -1793,6 +1793,8 @@ export interface operations {
                 skip?: number;
                 /** @description Nombre d'éléments à retourner */
                 take?: number;
+                /** @description Recherche par nom du local ou du locataire (insensible à la casse) */
+                search?: string;
             };
             header?: never;
             path?: never;
