@@ -8,6 +8,7 @@ generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
   moduleFormat  = "cjs"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
@@ -128,6 +129,7 @@ model Contract {
   @@index([localId])
   @@index([tenantId])
   @@index([status])
+  @@unique([localId], map: "Contract_localId_active_unique", where: raw("status = 'ACTIVE'"))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
