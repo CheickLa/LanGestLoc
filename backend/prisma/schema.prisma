@@ -125,6 +125,7 @@ model Contract {
   rentDues RentDue[]
   payments Payment[]
   deposit  Deposit?
+  document ContractDocument?
 
   @@index([localId])
   @@index([tenantId])
@@ -262,4 +263,18 @@ model Receipt {
   createdAt DateTime @default(now())
 
   payment Payment @relation(fields: [paymentId], references: [id])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Contrat de bail PDF généré à la création du contrat et immuable.
+/// Un seul document par contrat (jamais régénéré). s3Key référence AWS S3.
+model ContractDocument {
+  id         Int      @id @default(autoincrement())
+  contractId Int      @unique
+  documentNo String   @unique
+  s3Key      String
+  createdAt  DateTime @default(now())
+
+  contract Contract @relation(fields: [contractId], references: [id])
 }

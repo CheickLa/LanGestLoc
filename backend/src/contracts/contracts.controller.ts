@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, ParseIntPipe, UseGuards, Res } from '@nestjs/common';
 import {
   ApiOperation,
   ApiTags,
@@ -6,9 +6,13 @@ import {
   ApiBearerAuth,
   ApiOkResponse,
   ApiCreatedResponse,
+  ApiParam,
+  ApiProduces,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import { Role } from '@generated/prisma/client';
 import { ContractsService } from './contracts.service';
+import { ContractDocumentsService } from './contract-documents.service';
 import { PaginationDto } from '@/common/dto/pagination.dto';
 import { ApiPaginatedResponse } from '@/common/decorators/api-paginated-response.decorator';
 import { CreateContractDto } from './dto/create-contract.dto';
@@ -28,7 +32,10 @@ import { AuthenticatedUser } from '@/auth/strategies/jwt.strategy';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('contracts')
 export class ContractsController {
-  constructor(private readonly contractsService: ContractsService) {}
+  constructor(
+    private readonly contractsService: ContractsService,
+    private readonly contractDocumentsService: ContractDocumentsService,
+  ) {}
 
   @Post()
   @Roles(Role.ADMIN)
@@ -58,6 +65,27 @@ export class ContractsController {
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.contractsService.findOne(id);
+  }
+
+  @Get(':id/document/download')
+  @ApiOperation({ summary: 'Télécharger le contrat de bail (PDF)' })
+  @ApiParam({ name: 'id', description: 'ID du contrat', type: Number })
+  @ApiProduces('application/pdf')
+  @ApiOkResponse({
+    description: 'Fichier PDF du contrat de bail',
+    schema: { type: 'string', format: 'binary' },
+  })
+  @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
+  @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
+  async downloadDocument(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+    const { buffer, documentNo } = await this.contractDocumentsService.download(id);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${documentNo}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Patch(':id/terminate')

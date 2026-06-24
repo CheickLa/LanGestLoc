@@ -4,6 +4,7 @@ import { LocalEntity } from '@/locals/entities/local.entity';
 import { TenantEntity } from '@/tenants/entities/tenant.entity';
 import { RentEntity } from '@/rents/entities/rent.entity';
 import { DepositEntity } from './deposit.entity';
+import { ContractDocumentEntity } from './contract-document.entity';
 
 /** Champs scalaires d'un contrat (modèle Prisma Contract). */
 export class ContractEntity {
@@ -60,4 +61,7 @@ export class ContractDetailEntity extends ContractWithPartiesEntity {
 
   @ApiProperty({ type: () => RentEntity, nullable: true })
   activeRent: RentEntity | null;
+
+  @ApiProperty({ type: () => ContractDocumentEntity, nullable: true })
+  document: ContractDocumentEntity | null;
 }
