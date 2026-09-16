@@ -28,7 +28,7 @@ export function buildBailClauses(ctx: ClauseContext): BailClause[] {
     },
     {
       title: 'Loyer',
-      body: `Le loyer mensuel est fixé à ${ctx.rentAmount}, payable d'avance au plus tard le 5 de chaque mois. Toute révision du loyer fait l'objet d'un nouvel accord et prend effet à la date convenue, sans rétroactivité.`,
+      body: `Le loyer mensuel est fixé à ${ctx.rentAmount}, payable au plus tard le 5 du mois suivant le mois concerné. Toute révision du loyer fait l'objet d'un nouvel accord et prend effet à la date convenue, sans rétroactivité.`,
     },
     {
       title: 'Dépôt de caution',
