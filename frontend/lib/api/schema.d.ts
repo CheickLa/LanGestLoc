@@ -864,7 +864,7 @@ export interface components {
             contractId: number;
             /** @example BAIL-2026-00001 */
             documentNo: string;
-            /** @example contracts/2026/BAIL-2026-00001.pdf */
+            /** @example contracts/1/BAIL-2026-00001.pdf */
             s3Key: string;
             /**
              * Format: date-time
