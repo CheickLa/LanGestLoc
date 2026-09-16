@@ -79,11 +79,27 @@ describe('RentsService', () => {
       await expect(service.create({ ...dto, amount: 500000 })).rejects.toThrow(BadRequestException);
     });
 
+    it('should throw BadRequestException when amount is lower than the current rent', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({ id: 1, status: ContractStatus.ACTIVE });
+      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+
+      await expect(service.create({ ...dto, amount: 400000 })).rejects.toThrow(BadRequestException);
+      expect(mockTx.rent.create).not.toHaveBeenCalled();
+    });
+
     it('should throw BadRequestException when effectiveFrom is before current', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue({ id: 1, status: ContractStatus.ACTIVE });
       mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
 
       await expect(service.create({ ...dto, effectiveFrom: '2025-12-01' })).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when effectiveFrom is not the 1st of a month', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({ id: 1, status: ContractStatus.ACTIVE });
+      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+
+      await expect(service.create({ ...dto, effectiveFrom: '2026-04-15' })).rejects.toThrow(BadRequestException);
+      expect(mockTx.rent.create).not.toHaveBeenCalled();
     });
   });
 

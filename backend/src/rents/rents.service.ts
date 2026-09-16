@@ -21,10 +21,18 @@ export class RentsService {
     });
     if (!activeRent) throw new ConflictException(`Aucun loyer actif trouvé sur le contrat #${contractId}`);
 
-    // Le nouveau montant doit être différent de l'actuel
-    if (amount === activeRent.amount) {
+    // Une augmentation : le nouveau montant doit être strictement supérieur à l'actuel
+    if (amount <= activeRent.amount) {
       throw new BadRequestException(
-        `Le nouveau montant (${amount}) est identique au loyer actuel aucune modification nécessaire`,
+        `Le nouveau loyer (${amount}) doit être supérieur au loyer actuel (${activeRent.amount})`,
+      );
+    }
+
+    // La facturation est mensuelle : une augmentation prend effet au 1er d'un mois,
+    // pour qu'une échéance (toujours datée au 1er) corresponde à un seul loyer.
+    if (newEffectiveFrom.getUTCDate() !== 1) {
+      throw new BadRequestException(
+        "La date d'entrée en vigueur doit être le 1er d'un mois",
       );
     }
 
