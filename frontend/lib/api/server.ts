@@ -61,3 +61,14 @@ export async function backendMutate(
   const data = await response.json().catch(() => null);
   return NextResponse.json(data, { status: response.status });
 }
+
+/**
+ * Relaie une réponse binaire du backend (PDF) en streaming, en propageant
+ * le cookie httpOnly. À utiliser pour les téléchargements (bail, reçu).
+ */
+export async function backendStream(path: string): Promise<Response> {
+  return fetch(`${backendUrl()}${path}`, {
+    headers: await authHeader(),
+    cache: "no-store",
+  });
+}

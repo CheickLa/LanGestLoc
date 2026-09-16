@@ -23,6 +23,7 @@ export type DataTableProps<T> = {
   columns: Column<T>[];
   data: T[];
   getRowKey: (row: T) => string | number;
+  onRowClick?: (row: T) => void;
   renderMobileCard: (row: T) => ReactNode;
   pagination?: {
     total: number;
@@ -40,6 +41,7 @@ export function DataTable<T>({
   columns,
   data,
   getRowKey,
+  onRowClick,
   renderMobileCard,
   pagination,
   emptyState,
@@ -95,7 +97,11 @@ export function DataTable<T>({
               {data.map((row) => (
                 <tr
                   key={getRowKey(row)}
-                  className="transition-colors last:border-0 hover:bg-muted/40"
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={cn(
+                    "transition-colors last:border-0 hover:bg-muted/40",
+                    onRowClick && "cursor-pointer",
+                  )}
                 >
                   {columns.map((column) => (
                     <td
