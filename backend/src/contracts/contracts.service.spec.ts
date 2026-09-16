@@ -183,6 +183,7 @@ describe('ContractsService', () => {
       await service.findAll({ skip: 0, take: 20, search: 'centre' });
 
       const expectedWhere = {
+        status: { not: ContractStatus.CANCELED },
         OR: [
           { local: { name: { contains: 'centre', mode: 'insensitive' } } },
           { tenant: { name: { contains: 'centre', mode: 'insensitive' } } },
@@ -194,16 +195,17 @@ describe('ContractsService', () => {
       expect(mockPrisma.contract.count).toHaveBeenCalledWith({ where: expectedWhere });
     });
 
-    it('ne filtre pas (where vide) quand search est absent', async () => {
+    it('exclut les contrats annulés (CANCELED) quand search est absent', async () => {
       mockPrisma.contract.findMany.mockResolvedValue([]);
       mockPrisma.contract.count.mockResolvedValue(0);
 
       await service.findAll({ skip: 0, take: 20 });
 
+      const expectedWhere = { status: { not: ContractStatus.CANCELED } };
       expect(mockPrisma.contract.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: {} }),
+        expect.objectContaining({ where: expectedWhere }),
       );
-      expect(mockPrisma.contract.count).toHaveBeenCalledWith({ where: {} });
+      expect(mockPrisma.contract.count).toHaveBeenCalledWith({ where: expectedWhere });
     });
   });
 
