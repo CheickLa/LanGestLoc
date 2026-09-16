@@ -30,9 +30,18 @@ function firstOfMonth(year: number, month: number): Date {
   return new Date(Date.UTC(year, month - 1, 1));
 }
 
-/** Retourne le 5 du mois à 00:00:00 UTC (dueDate) */
+/** Retourne le 5 du mois donné à 00:00:00 UTC (utilisé comme date de paiement). */
 function fifthOfMonth(year: number, month: number): Date {
   return new Date(Date.UTC(year, month - 1, 5));
+}
+
+/**
+ * dueDate d'une échéance : le 5 du mois SUIVANT, comme generate() en production
+ * (« le 05 du mois suivant »). `month` est 1-based, donc l'argument mois 0-based
+ * de Date.UTC pointe déjà sur le mois suivant (rollover d'année géré par Date).
+ */
+function dueDateForMonth(year: number, month: number): Date {
+  return new Date(Date.UTC(year, month, 5));
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
@@ -90,13 +99,17 @@ async function main() {
     console.log('⏭ USER_EMAIL/USER_PASSWORD non définis, user seed ignoré');
   }
 
-  // ── 2. Locals (4) ───────────────────────────────────────────────────────
+  // ── 2. Locals (6) ───────────────────────────────────────────────────────
+  //  Les boutiques 5 et 6 restent VACANTES (aucun contrat) : elles servent à
+  //  tester la création d'un contrat (le formulaire ne propose que des locaux libres).
 
   const localsData = [
     { code: 'LOCAL-001', name: 'Boutique 1' },
     { code: 'LOCAL-002', name: 'Boutique 2' },
     { code: 'LOCAL-003', name: 'Boutique 3' },
     { code: 'LOCAL-004', name: 'Boutique 4' },
+    { code: 'LOCAL-005', name: 'Boutique 5' },
+    { code: 'LOCAL-006', name: 'Boutique 6' },
   ];
 
   const locals = await Promise.all(
@@ -110,7 +123,9 @@ async function main() {
   );
   console.log(`✓ ${locals.length} locaux`);
 
-  // ── 3. Tenants (5) ──────────────────────────────────────────────────────
+  // ── 3. Tenants (7) ──────────────────────────────────────────────────────
+  //  Les 2 derniers locataires n'ont AUCUN contrat : ils servent à tester la
+  //  création d'un contrat (un locataire libre à rattacher à une boutique vacante).
 
   const tenantsData = [
     {
@@ -152,6 +167,23 @@ async function main() {
       dateOfBirth: new Date('1980-06-05'),
       birthPlace: 'Boké',
       idNumber: 'GN-ID-000005',
+    },
+    // Locataires libres (aucun contrat) — disponibles pour créer un nouveau bail.
+    {
+      name: 'Mariama Diallo',
+      activity: 'Restauration',
+      phone: '+224620000006',
+      dateOfBirth: new Date('1988-09-12'),
+      birthPlace: 'Mamou',
+      idNumber: 'GN-ID-000006',
+    },
+    {
+      name: 'Sékou Touré',
+      activity: 'Électronique',
+      phone: '+224620000007',
+      dateOfBirth: new Date('1983-04-30'),
+      birthPlace: 'Faranah',
+      idNumber: 'GN-ID-000007',
     },
   ];
 
@@ -409,7 +441,7 @@ async function main() {
         rentId: rent1.id,
         month: firstOfMonth(2025, m),
         amount: 400_000,
-        dueDate: fifthOfMonth(2025, m),
+        dueDate: dueDateForMonth(2025, m),
         status: RentDueStatus.PAID,
       },
     });
@@ -428,14 +460,14 @@ async function main() {
         rentId: isNewRent ? rent2b.id : rent2a.id,
         month: firstOfMonth(2026, m),
         amount: isNewRent ? 550_000 : 500_000,
-        dueDate: fifthOfMonth(2026, m),
+        dueDate: dueDateForMonth(2026, m),
         status: m <= 3 ? RentDueStatus.PAID : RentDueStatus.PENDING,
       },
     });
     rentDues2.push(rd);
   }
 
-  // Contrat 4 (ACTIVE) : fév–avr 2026 (fév payé, mars LATE, avr PENDING)
+  // Contrat 4 (ACTIVE) : fév–avr 2026 (fév payé ; mars/avr impayés → LATE via réconciliation)
   const rentDues4: RentDue[] = [];
   for (const m of [2, 3, 4]) {
     const rd = await prisma.rentDue.upsert({
@@ -446,14 +478,14 @@ async function main() {
         rentId: rent4.id,
         month: firstOfMonth(2026, m),
         amount: 750_000,
-        dueDate: fifthOfMonth(2026, m),
-        status: m === 2 ? RentDueStatus.PAID : m === 3 ? RentDueStatus.LATE : RentDueStatus.PENDING,
+        dueDate: dueDateForMonth(2026, m),
+        status: m === 2 ? RentDueStatus.PAID : RentDueStatus.PENDING,
       },
     });
     rentDues4.push(rd);
   }
 
-  // Contrat 5 (ACTIVE) : jan–avr 2026 (jan-fév payés, mars-avr PENDING)
+  // Contrat 5 (ACTIVE) : jan–avr 2026 (jan-fév payés ; mars/avr impayés → LATE via réconciliation)
   const rentDues5: RentDue[] = [];
   for (const m of [1, 2, 3, 4]) {
     const rd = await prisma.rentDue.upsert({
@@ -464,14 +496,14 @@ async function main() {
         rentId: rent5.id,
         month: firstOfMonth(2026, m),
         amount: 350_000,
-        dueDate: fifthOfMonth(2026, m),
+        dueDate: dueDateForMonth(2026, m),
         status: m <= 2 ? RentDueStatus.PAID : RentDueStatus.PENDING,
       },
     });
     rentDues5.push(rd);
   }
 
-  // Contrat 6 (ACTIVE) : mars–avr 2026 (mars payé, avr PENDING)
+  // Contrat 6 (ACTIVE) : mars–avr 2026 (mars payé ; avr impayé → LATE via réconciliation)
   const rentDues6: RentDue[] = [];
   for (const m of [3, 4]) {
     const rd = await prisma.rentDue.upsert({
@@ -482,7 +514,7 @@ async function main() {
         rentId: rent6.id,
         month: firstOfMonth(2026, m),
         amount: 450_000,
-        dueDate: fifthOfMonth(2026, m),
+        dueDate: dueDateForMonth(2026, m),
         status: m === 3 ? RentDueStatus.PAID : RentDueStatus.PENDING,
       },
     });
@@ -490,7 +522,16 @@ async function main() {
   }
 
   const totalRentDues = rentDues1.length + rentDues2.length + rentDues4.length + rentDues5.length + rentDues6.length;
-  console.log(`✓ ${totalRentDues} échéances`);
+
+  // Réconciliation identique au cron markOverdueAsLate : toute échéance PENDING
+  // dont la date d'exigibilité est passée bascule en LATE. Le statut « en retard »
+  // est ainsi dérivé de la date du jour (jamais figé) → le seed reste cohérent
+  // quelle que soit la date à laquelle on le rejoue.
+  const lateResult = await prisma.rentDue.updateMany({
+    where: { status: RentDueStatus.PENDING, dueDate: { lt: new Date() } },
+    data: { status: RentDueStatus.LATE },
+  });
+  console.log(`✓ ${totalRentDues} échéances (${lateResult.count} passée(s) en LATE)`);
 
   // ── 8. Payments + PaymentLines ───────────────────────────────────────────
 
@@ -709,11 +750,14 @@ async function main() {
 
   console.log('\n── Seed terminé ──');
   console.log('  Contrat 1 (Boutique 1, Ousmane)    : juil–déc 2025, TERMINATED, caution HELD→REFUNDED, loyers payés en 1 fois');
-  console.log('  Contrat 2 (Boutique 1, Ibrahima)   : jan–avr 2026, ACTIVE, caution HELD, augmentation mars, 3 loyers payés, avr PENDING');
+  console.log('  Contrat 2 (Boutique 1, Ibrahima)   : jan–avr 2026, ACTIVE, caution HELD, augmentation mars, 3 loyers payés, avr impayé');
   console.log('  Contrat 3 (Boutique 2, Aissatou)   : oct 2025, CANCELED, caution HELD→REFUNDED, aucun loyer');
-  console.log('  Contrat 4 (Boutique 2, Fatoumata)  : fév–avr 2026, ACTIVE, caution HELD, fév payé, mars LATE, avr PENDING');
-  console.log('  Contrat 5 (Boutique 3, Mamadou S.) : jan–avr 2026, ACTIVE, caution HELD, jan+fév payés multi-mois, mars-avr PENDING');
-  console.log('  Contrat 6 (Boutique 4, Ousmane)    : mars–avr 2026, ACTIVE, caution HELD, mars payé, avr PENDING');
+  console.log('  Contrat 4 (Boutique 2, Fatoumata)  : fév–avr 2026, ACTIVE, caution HELD, fév payé, mars/avr impayés');
+  console.log('  Contrat 5 (Boutique 3, Mamadou S.) : jan–avr 2026, ACTIVE, caution HELD, jan+fév payés multi-mois, mars/avr impayés');
+  console.log('  Contrat 6 (Boutique 4, Ousmane)    : mars–avr 2026, ACTIVE, caution HELD, mars payé, avr impayé');
+  console.log('  (échéances impayées dont l\'exigibilité est passée → LATE)');
+  console.log('  Boutiques 5 & 6                    : VACANTES (aucun contrat) → dispo pour créer un bail');
+  console.log('  Mariama Diallo & Sékou Touré       : locataires SANS contrat → dispo pour créer un bail');
 }
 
 main()
