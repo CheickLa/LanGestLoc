@@ -71,7 +71,7 @@ export class ContractDocumentsService {
 
       const pdfBuffer = await buildBailPdf(data, documentNo, this.bailleur, this.lieu, this.representant);
 
-      const s3Key = `contracts/${year}/${documentNo}.pdf`;
+      const s3Key = `contracts/${contractId}/${documentNo}.pdf`;
       await this.s3.upload(s3Key, pdfBuffer, 'application/pdf');
 
       return this.prisma.contractDocument.create({
