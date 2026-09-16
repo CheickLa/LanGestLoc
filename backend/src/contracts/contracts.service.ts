@@ -95,14 +95,19 @@ export class ContractsService {
   }
 
   async findAll({ skip, take, search }: FindContractsQueryDto) {
-    const where: Prisma.ContractWhereInput = search
-      ? {
-          OR: [
-            { local: { name: { contains: search, mode: 'insensitive' } } },
-            { tenant: { name: { contains: search, mode: 'insensitive' } } },
-          ],
-        }
-      : {};
+    // Les contrats annulés (annulés avant tout paiement de loyer) sont exclus de
+    // la liste : ils n'ont aucune valeur de suivi. Le détail reste accessible par URL.
+    const where: Prisma.ContractWhereInput = {
+      status: { not: ContractStatus.CANCELED },
+      ...(search
+        ? {
+            OR: [
+              { local: { name: { contains: search, mode: 'insensitive' } } },
+              { tenant: { name: { contains: search, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
 
     const [contracts, total] = await this.prisma.$transaction([
       this.prisma.contract.findMany({
