@@ -31,6 +31,30 @@ export async function backendFetch<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+/** Taille de page maximale acceptée par le backend (`PaginationDto.take`) */
+const MAX_PAGE_SIZE = 100;
+
+/**
+ * Lecture complète d'une liste paginée (`{ items, total }`) : enchaîne les pages
+ * jusqu'à `total`. Pour les listes de sélection qui doivent tout proposer.
+ */
+export async function backendFetchAll<T>(path: string): Promise<T[]> {
+  const separator = path.includes("?") ? "&" : "?";
+  const items: T[] = [];
+  let total = 0;
+
+  do {
+    const page = await backendFetch<{ items: T[]; total: number }>(
+      `${path}${separator}skip=${items.length}&take=${MAX_PAGE_SIZE}`,
+    );
+    if (page.items.length === 0) break;
+    items.push(...page.items);
+    total = page.total;
+  } while (items.length < total);
+
+  return items;
+}
+
 /**
  * Mutation depuis un Route Handler. Relaie le cookie httpOnly vers NestJS
  * et renvoie une NextResponse qui reflète le statut + corps du backend
@@ -67,8 +91,12 @@ export async function backendMutate(
  * le cookie httpOnly. À utiliser pour les téléchargements (bail, reçu).
  */
 export async function backendStream(path: string): Promise<Response> {
-  return fetch(`${backendUrl()}${path}`, {
-    headers: await authHeader(),
-    cache: "no-store",
-  });
+  try {
+    return await fetch(`${backendUrl()}${path}`, {
+      headers: await authHeader(),
+      cache: "no-store",
+    });
+  } catch {
+    return new Response(null, { status: 502 });
+  }
 }

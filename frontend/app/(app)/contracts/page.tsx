@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth-server";
-import { backendFetch } from "@/lib/api/server";
+import { backendFetch, backendFetchAll } from "@/lib/api/server";
 import type { components } from "@/lib/api/schema";
 
 import { ContractsPageClient } from "./contracts-page-client";
@@ -45,11 +45,11 @@ export default async function ContractsPage({
 
   const formData: ContractFormData | null = isAdmin
     ? await Promise.all([
-        backendFetch<{ items: LocalListItem[] }>(`/locals?take=100`),
-        backendFetch<{ items: TenantListItem[] }>(`/tenants?take=100`),
+        backendFetchAll<LocalListItem>("/locals"),
+        backendFetchAll<TenantListItem>("/tenants"),
       ]).then(([locals, tenants]) => ({
-        locals: locals.items.filter((l) => l.status === "VACANT"),
-        tenants: tenants.items,
+        locals: locals.filter((l) => l.status === "VACANT"),
+        tenants,
       }))
     : null;
 

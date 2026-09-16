@@ -67,7 +67,8 @@ export class TenantsService {
         where,
         skip,
         take,
-        orderBy: { name: 'asc' },
+        // Départage par id : les noms ne sont pas uniques, l'ordre doit être stable entre pages
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
         include: { _count: { select: { contracts: true } } },
       }),
       this.prisma.tenant.count({ where }),
