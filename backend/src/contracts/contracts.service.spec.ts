@@ -35,14 +35,18 @@ const mockTx = {
   },
 };
 
+type MockTx = typeof mockTx;
+
+const runInTransaction = <T>(
+  arg: ((tx: MockTx) => Promise<T>) | Promise<T>[],
+) => (Array.isArray(arg) ? Promise.all(arg) : arg(mockTx));
+
 const mockPrisma = {
   local: { findUnique: jest.fn() },
   tenant: { findUnique: jest.fn() },
   contract: { findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
   rentDue: { count: jest.fn() },
-  $transaction: jest.fn((arg) =>
-    Array.isArray(arg) ? Promise.all(arg) : arg(mockTx),
-  ),
+  $transaction: jest.fn(runInTransaction),
 };
 
 const mockPaymentsService = {
@@ -81,9 +85,7 @@ describe('ContractsService', () => {
 
     service = module.get<ContractsService>(ContractsService);
     jest.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((arg) =>
-      Array.isArray(arg) ? Promise.all(arg) : arg(mockTx),
-    );
+    mockPrisma.$transaction.mockImplementation(runInTransaction);
   });
 
   const createDto = {

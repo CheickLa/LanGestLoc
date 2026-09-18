@@ -151,10 +151,10 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('should return an access token', async () => {
+    it('should return an access token', () => {
       const user = { id: 1, email: 'john@test.com', role: Role.USER };
 
-      const result = await service.login(user);
+      const result = service.login(user);
 
       expect(mockJwtService.sign).toHaveBeenCalledWith({
         sub: 1,

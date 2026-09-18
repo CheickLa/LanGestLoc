@@ -7,20 +7,19 @@ import {
   MinLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { trim, trimLowercase } from '@/common/transforms';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Role } from '@generated/prisma/client';
 
 export class RegisterDto {
   @ApiProperty({ example: 'John Doe' })
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(trim)
   @IsString()
   @IsNotEmpty()
   name: string;
 
   @ApiProperty({ example: 'john@example.com' })
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.trim().toLowerCase() : value,
-  )
+  @Transform(trimLowercase)
   @IsEmail()
   email: string;
 

@@ -61,7 +61,7 @@ export class AuthService {
     return { id: user.id, email: user.email, name: user.name, role: user.role };
   }
 
-  async login(user: { id: number; email: string; role: Role }) {
+  login(user: { id: number; email: string; role: Role }) {
     return this.buildTokenResponse(user.id, user.email, user.role);
   }
 
