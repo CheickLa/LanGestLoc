@@ -12,10 +12,14 @@ const mockTx = {
   rent: { update: jest.fn(), create: jest.fn() },
 };
 
+type MockTx = typeof mockTx;
+
+const runInTransaction = <T>(cb: (tx: MockTx) => Promise<T>) => cb(mockTx);
+
 const mockPrisma = {
   contract: { findUnique: jest.fn() },
   rent: { findFirst: jest.fn(), findMany: jest.fn() },
-  $transaction: jest.fn((cb) => cb(mockTx)),
+  $transaction: jest.fn(runInTransaction),
 };
 
 describe('RentsService', () => {
@@ -31,7 +35,7 @@ describe('RentsService', () => {
 
     service = module.get<RentsService>(RentsService);
     jest.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((cb) => cb(mockTx));
+    mockPrisma.$transaction.mockImplementation(runInTransaction);
   });
 
   const activeRent = {

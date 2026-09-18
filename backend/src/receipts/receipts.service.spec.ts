@@ -13,10 +13,14 @@ const mockTx = {
   receipt: { findFirst: jest.fn(), create: jest.fn() },
 };
 
+type MockTx = typeof mockTx;
+
+const runInTransaction = <T>(cb: (tx: MockTx) => Promise<T>) => cb(mockTx);
+
 const mockPrisma = {
   receipt: { findUnique: jest.fn() },
   payment: { findUnique: jest.fn() },
-  $transaction: jest.fn((cb) => cb(mockTx)),
+  $transaction: jest.fn(runInTransaction),
 };
 
 const mockS3 = {
@@ -51,7 +55,7 @@ describe('ReceiptsService', () => {
 
     service = module.get<ReceiptsService>(ReceiptsService);
     jest.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((cb) => cb(mockTx));
+    mockPrisma.$transaction.mockImplementation(runInTransaction);
   });
 
   describe('generate', () => {

@@ -24,7 +24,10 @@ import { AuthTokenEntity } from '@/auth/entities/auth-token.entity';
 import { UserEntity } from '@/users/entities/user.entity';
 import { LocalAuthGuard, JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { CurrentUser, Roles } from '@/auth/decorators';
-import { AuthenticatedUser } from '@/auth/strategies/jwt.strategy';
+import {
+  AuthenticatedRequest,
+  AuthenticatedUser,
+} from '@/auth/strategies/jwt.strategy';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -60,7 +63,7 @@ export class AuthController {
     type: AuthTokenEntity,
   })
   @ApiResponse({ status: 401, description: 'Email ou mot de passe incorrect' })
-  login(@Request() req, @Body() _dto: LoginDto) {
+  login(@Request() req: AuthenticatedRequest, @Body() _dto: LoginDto) {
     return this.authService.login(req.user);
   }
 

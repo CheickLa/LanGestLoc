@@ -27,9 +27,26 @@ export default tseslint.config(
   {
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
+      // Les paramètres préfixés d'un `_` sont volontairement inutilisés
+      // (ex: `@Body() _dto` requis pour la validation et la doc Swagger).
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_' },
+      ],
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
       "prettier/prettier": ["error", { endOfLine: "auto" }],
+    },
+  },
+  {
+    files: ['**/*.spec.ts'],
+    rules: {
+      // Faux positif connu avec Jest : `expect(mock.methode)` passe la méthode
+      // sans son `this`, ce qui est le comportement attendu ici.
+      '@typescript-eslint/unbound-method': 'off',
+      // Les matchers de @types/jest (objectContaining, any, stringContaining…)
+      // sont déclarés comme renvoyant `any`.
+      '@typescript-eslint/no-unsafe-assignment': 'off',
     },
   },
 );

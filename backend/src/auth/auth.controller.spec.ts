@@ -39,12 +39,12 @@ describe('AuthController', () => {
   });
 
   describe('POST /auth/login', () => {
-    it('should call authService.login with req.user', async () => {
+    it('should call authService.login with req.user', () => {
       const user = { id: 1, email: 'john@test.com', role: Role.USER };
       const req = { user };
-      mockAuthService.login.mockResolvedValue({ accessToken: 'token' });
+      mockAuthService.login.mockReturnValue({ accessToken: 'token' });
 
-      const result = await controller.login(req, {
+      const result = controller.login(req, {
         email: 'john@test.com',
         password: 'Password123',
       });
