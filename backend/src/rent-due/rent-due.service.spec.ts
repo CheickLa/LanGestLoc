@@ -7,7 +7,12 @@ import { ContractStatus, RentDueStatus } from '@generated/prisma/client';
 const mockPrisma = {
   contract: { findUnique: jest.fn(), findMany: jest.fn() },
   rent: { findFirst: jest.fn() },
-  rentDue: { findUnique: jest.fn(), create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
+  rentDue: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    findMany: jest.fn(),
+    updateMany: jest.fn(),
+  },
 };
 
 describe('RentDueService', () => {
@@ -27,14 +32,27 @@ describe('RentDueService', () => {
 
   const dto = { contractId: 1, month: '2026-04' };
   const activeContract = { id: 1, status: ContractStatus.ACTIVE };
-  const activeRent = { id: 1, contractId: 1, amount: 500000, effectiveFrom: new Date('2026-01-01'), effectiveTo: null };
+  const activeRent = {
+    id: 1,
+    contractId: 1,
+    amount: 500000,
+    effectiveFrom: new Date('2026-01-01'),
+    effectiveTo: null,
+  };
 
   describe('generate', () => {
     it('should create a rent due for the given contract and month', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
       mockPrisma.rentDue.findUnique.mockResolvedValue(null);
       mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
-      const created = { id: 1, contractId: 1, rentId: 1, month: new Date(Date.UTC(2026, 3, 1)), amount: 500000, dueDate: new Date(Date.UTC(2026, 4, 5)) };
+      const created = {
+        id: 1,
+        contractId: 1,
+        rentId: 1,
+        month: new Date(Date.UTC(2026, 3, 1)),
+        amount: 500000,
+        dueDate: new Date(Date.UTC(2026, 4, 5)),
+      };
       mockPrisma.rentDue.create.mockResolvedValue(created);
 
       const result = await service.generate(dto);
@@ -58,7 +76,10 @@ describe('RentDueService', () => {
     });
 
     it('should throw ConflictException when contract is not active', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({ id: 1, status: ContractStatus.TERMINATED });
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        id: 1,
+        status: ContractStatus.TERMINATED,
+      });
 
       await expect(service.generate(dto)).rejects.toThrow(ConflictException);
     });
@@ -97,7 +118,9 @@ describe('RentDueService', () => {
     it('should throw NotFoundException when contract does not exist', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue(null);
 
-      await expect(service.findAllByContract(999)).rejects.toThrow(NotFoundException);
+      await expect(service.findAllByContract(999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -119,7 +142,9 @@ describe('RentDueService', () => {
     it('should throw NotFoundException when contract does not exist', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue(null);
 
-      await expect(service.findByContract(999, RentDueStatus.PENDING)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.findByContract(999, RentDueStatus.PENDING),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

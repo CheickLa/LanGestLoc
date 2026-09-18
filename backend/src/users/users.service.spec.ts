@@ -30,8 +30,9 @@ const prismaModels = {
 
 const mockPrisma = {
   ...prismaModels,
-  $transaction: jest.fn((arg: unknown[] | ((tx: typeof prismaModels) => Promise<unknown>)) =>
-    Array.isArray(arg) ? Promise.all(arg) : arg(prismaModels),
+  $transaction: jest.fn(
+    (arg: unknown[] | ((tx: typeof prismaModels) => Promise<unknown>)) =>
+      Array.isArray(arg) ? Promise.all(arg) : arg(prismaModels),
   ),
 };
 
@@ -63,7 +64,10 @@ describe('UsersService', () => {
       const updated = { ...userSafe, name: 'Updated', email: 'new@test.com' };
       mockPrisma.user.update.mockResolvedValue(updated);
 
-      const result = await service.updateMe(1, { name: 'Updated', email: 'new@test.com' });
+      const result = await service.updateMe(1, {
+        name: 'Updated',
+        email: 'new@test.com',
+      });
 
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 1 },
@@ -100,15 +104,20 @@ describe('UsersService', () => {
     });
 
     it('should throw BadRequestException when no data is provided', async () => {
-      await expect(service.updateMe(1, {})).rejects.toThrow(BadRequestException);
+      await expect(service.updateMe(1, {})).rejects.toThrow(
+        BadRequestException,
+      );
       expect(mockPrisma.user.update).not.toHaveBeenCalled();
     });
 
     it('should throw ConflictException on duplicate email (P2002)', async () => {
-      const prismaError = new Prisma.PrismaClientKnownRequestError('Unique constraint', {
-        code: 'P2002',
-        clientVersion: '5.0.0',
-      });
+      const prismaError = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint',
+        {
+          code: 'P2002',
+          clientVersion: '5.0.0',
+        },
+      );
       mockPrisma.user.update.mockRejectedValue(prismaError);
 
       await expect(
@@ -117,19 +126,26 @@ describe('UsersService', () => {
     });
 
     it('should throw NotFoundException when record is missing (P2025)', async () => {
-      const prismaError = new Prisma.PrismaClientKnownRequestError('Record not found', {
-        code: 'P2025',
-        clientVersion: '5.0.0',
-      });
+      const prismaError = new Prisma.PrismaClientKnownRequestError(
+        'Record not found',
+        {
+          code: 'P2025',
+          clientVersion: '5.0.0',
+        },
+      );
       mockPrisma.user.update.mockRejectedValue(prismaError);
 
-      await expect(service.updateMe(999, { name: 'X' })).rejects.toThrow(NotFoundException);
+      await expect(service.updateMe(999, { name: 'X' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should rethrow unexpected errors', async () => {
       mockPrisma.user.update.mockRejectedValue(new Error('DB down'));
 
-      await expect(service.updateMe(1, { name: 'X' })).rejects.toThrow('DB down');
+      await expect(service.updateMe(1, { name: 'X' })).rejects.toThrow(
+        'DB down',
+      );
     });
   });
 
@@ -147,7 +163,10 @@ describe('UsersService', () => {
         newPassword: 'newPass123',
       });
 
-      expect(bcrypt.compare).toHaveBeenCalledWith('oldPass123', 'hashed-current');
+      expect(bcrypt.compare).toHaveBeenCalledWith(
+        'oldPass123',
+        'hashed-current',
+      );
       expect(bcrypt.hash).toHaveBeenCalledWith('newPass123', 10);
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 1 },
@@ -243,19 +262,29 @@ describe('UsersService', () => {
 
   describe('adminUpdate', () => {
     it('should throw BadRequestException when no data is provided', async () => {
-      await expect(service.adminUpdate(2, {})).rejects.toThrow(BadRequestException);
+      await expect(service.adminUpdate(2, {})).rejects.toThrow(
+        BadRequestException,
+      );
       expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundException when user does not exist', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.adminUpdate(999, { name: 'X' })).rejects.toThrow(NotFoundException);
+      await expect(service.adminUpdate(999, { name: 'X' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should update name, email and role when user exists', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: 2, role: Role.USER });
-      const updated = { ...userSafe, id: 2, name: 'New', email: 'new@test.com', role: Role.ADMIN };
+      const updated = {
+        ...userSafe,
+        id: 2,
+        name: 'New',
+        email: 'new@test.com',
+        role: Role.ADMIN,
+      };
       mockPrisma.user.update.mockResolvedValue(updated);
 
       const result = await service.adminUpdate(2, {
@@ -282,9 +311,9 @@ describe('UsersService', () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: 1, role: Role.ADMIN });
       mockPrisma.user.count.mockResolvedValue(0);
 
-      await expect(
-        service.adminUpdate(1, { role: Role.USER }),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.adminUpdate(1, { role: Role.USER })).rejects.toThrow(
+        BadRequestException,
+      );
 
       expect(mockPrisma.user.count).toHaveBeenCalledWith({
         where: { role: Role.ADMIN, id: { not: 1 } },
@@ -371,7 +400,10 @@ describe('UsersService', () => {
       mockPrisma.user.count.mockResolvedValue(1);
       mockPrisma.contract.count.mockResolvedValue(0);
       mockPrisma.payment.count.mockResolvedValue(0);
-      mockPrisma.user.delete.mockResolvedValue({ ...userSafe, role: Role.ADMIN });
+      mockPrisma.user.delete.mockResolvedValue({
+        ...userSafe,
+        role: Role.ADMIN,
+      });
 
       await service.remove(2, 1);
 

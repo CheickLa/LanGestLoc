@@ -11,7 +11,10 @@ export class RentDueEntity {
   @ApiProperty({ example: 1 })
   rentId: number;
 
-  @ApiProperty({ description: '1er du mois à 00:00:00 UTC', example: '2026-01-01T00:00:00.000Z' })
+  @ApiProperty({
+    description: '1er du mois à 00:00:00 UTC',
+    example: '2026-01-01T00:00:00.000Z',
+  })
   month: Date;
 
   @ApiProperty({ example: 150000 })

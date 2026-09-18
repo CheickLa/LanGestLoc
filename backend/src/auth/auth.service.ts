@@ -33,7 +33,10 @@ export class AuthService {
 
       return this.buildTokenResponse(user.id, user.email, user.role);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
         throw new ConflictException('Un compte avec cet email existe déjà');
       }
       throw error;
@@ -65,11 +68,19 @@ export class AuthService {
   async getProfile(userId: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, email: true, role: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
     });
 
     if (!user) {
-      throw new UnauthorizedException('Session invalide, veuillez vous reconnecter');
+      throw new UnauthorizedException(
+        'Session invalide, veuillez vous reconnecter',
+      );
     }
 
     return user;

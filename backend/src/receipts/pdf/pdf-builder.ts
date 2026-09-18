@@ -123,7 +123,9 @@ function drawHeader(doc: PDFKit.PDFDocument, receiptNo: string, type: string) {
     .font(FONT.regular)
     .fontSize(8)
     .fillColor(COLOR.green300)
-    .text(TYPE_TITLES[type] ?? 'REÇU DE PAIEMENT', MARGIN, 22, { characterSpacing: 1.5 });
+    .text(TYPE_TITLES[type] ?? 'REÇU DE PAIEMENT', MARGIN, 22, {
+      characterSpacing: 1.5,
+    });
 
   doc
     .font(FONT.bold)
@@ -135,13 +137,20 @@ function drawHeader(doc: PDFKit.PDFDocument, receiptNo: string, type: string) {
     .font(FONT.regular)
     .fontSize(7.5)
     .fillColor(COLOR.green300)
-    .text('ÉMIS LE', 0, 24, { align: 'right', width: PAGE_W - MARGIN, characterSpacing: 1 });
+    .text('ÉMIS LE', 0, 24, {
+      align: 'right',
+      width: PAGE_W - MARGIN,
+      characterSpacing: 1,
+    });
 
   doc
     .font(FONT.regular)
     .fontSize(11)
     .fillColor(COLOR.green50)
-    .text(formatDate(new Date()), 0, 36, { align: 'right', width: PAGE_W - MARGIN });
+    .text(formatDate(new Date()), 0, 36, {
+      align: 'right',
+      width: PAGE_W - MARGIN,
+    });
 }
 
 function drawParties(
@@ -173,7 +182,12 @@ function drawParties(
   return y + 16;
 }
 
-function drawLocal(doc: PDFKit.PDFDocument, local: ReceiptLocal, lieu: string, y: number): number {
+function drawLocal(
+  doc: PDFKit.PDFDocument,
+  local: ReceiptLocal,
+  lieu: string,
+  y: number,
+): number {
   doc.rect(MARGIN, y, 3, 28).fill(COLOR.green500);
 
   labelText(doc, 'Local', MARGIN + 12, y + 2);
@@ -181,7 +195,9 @@ function drawLocal(doc: PDFKit.PDFDocument, local: ReceiptLocal, lieu: string, y
     .font(FONT.bold)
     .fontSize(11)
     .fillColor(COLOR.black)
-    .text(`${local.name} — ${lieu}`, MARGIN + 12, y + 14, { width: CONTENT_W - 12 });
+    .text(`${local.name} — ${lieu}`, MARGIN + 12, y + 14, {
+      width: CONTENT_W - 12,
+    });
 
   y += 44;
   divider(doc, y);
@@ -212,17 +228,25 @@ function drawPaymentLines(
 
   if (isDepositOnly) {
     const objectLabel =
-      type === 'DEPOSIT_HELD' ? 'Versement de la caution' : 'Restitution de la caution';
+      type === 'DEPOSIT_HELD'
+        ? 'Versement de la caution'
+        : 'Restitution de la caution';
     doc.font(FONT.regular).fontSize(11).fillColor(COLOR.black);
     doc.text(objectLabel, MARGIN, y);
-    doc.text(formatAmount(totalAmount), 0, y, { align: 'right', width: PAGE_W - MARGIN });
+    doc.text(formatAmount(totalAmount), 0, y, {
+      align: 'right',
+      width: PAGE_W - MARGIN,
+    });
     y += 22;
     divider(doc, y - 4, 0.3);
   } else {
     for (const pl of lines) {
       doc.font(FONT.regular).fontSize(11).fillColor(COLOR.black);
       doc.text(formatMonth(pl.rentDue.month), MARGIN, y);
-      doc.text(formatAmount(pl.rentDue.amount), 0, y, { align: 'right', width: PAGE_W - MARGIN });
+      doc.text(formatAmount(pl.rentDue.amount), 0, y, {
+        align: 'right',
+        width: PAGE_W - MARGIN,
+      });
       y += 22;
       divider(doc, y - 4, 0.3);
     }
@@ -245,7 +269,10 @@ function drawPaymentLines(
     .font(FONT.bold)
     .fontSize(18)
     .fillColor(COLOR.green700)
-    .text(formatAmount(totalAmount), 0, y, { align: 'right', width: PAGE_W - MARGIN });
+    .text(formatAmount(totalAmount), 0, y, {
+      align: 'right',
+      width: PAGE_W - MARGIN,
+    });
 
   y += 36;
   divider(doc, y);
@@ -276,7 +303,10 @@ function drawPaymentInfo(
     .font(FONT.bold)
     .fontSize(11)
     .fillColor(COLOR.black)
-    .text(formatDate(date), MARGIN, y + 20, { align: 'right', width: CONTENT_W - 12 });
+    .text(formatDate(date), MARGIN, y + 20, {
+      align: 'right',
+      width: CONTENT_W - 12,
+    });
 }
 
 function drawFooter(doc: PDFKit.PDFDocument) {
@@ -294,10 +324,15 @@ function drawFooter(doc: PDFKit.PDFDocument) {
     .font(FONT.regular)
     .fontSize(8.5)
     .fillColor(COLOR.gray600)
-    .text('Ce reçu est généré automatiquement et fait foi de paiement.', 0, footerY + 10, {
-      align: 'center',
-      width: PAGE_W,
-    });
+    .text(
+      'Ce reçu est généré automatiquement et fait foi de paiement.',
+      0,
+      footerY + 10,
+      {
+        align: 'center',
+        width: PAGE_W,
+      },
+    );
 
   doc
     .font(FONT.regular)
@@ -328,7 +363,13 @@ export function buildReceiptPdf(
     let y = HEADER_H + 28;
     y = drawParties(doc, bailleur, tenant, y);
     y = drawLocal(doc, local, lieu, y);
-    y = drawPaymentLines(doc, payment.paymentLines, payment.amount, payment.type, y);
+    y = drawPaymentLines(
+      doc,
+      payment.paymentLines,
+      payment.amount,
+      payment.type,
+      y,
+    );
     drawPaymentInfo(doc, payment.paymentMethod, payment.paymentDate, y);
     drawFooter(doc);
 

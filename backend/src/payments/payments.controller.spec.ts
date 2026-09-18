@@ -25,7 +25,11 @@ describe('PaymentsController', () => {
 
   describe('POST /payments', () => {
     it('should call service.create with dto and user id', async () => {
-      const dto = { rentDueIds: [1, 2], paymentDate: '2026-04-01', paymentMethod: PaymentMethod.CASH };
+      const dto = {
+        rentDueIds: [1, 2],
+        paymentDate: '2026-04-01',
+        paymentMethod: PaymentMethod.CASH,
+      };
       const user = { id: 1 };
       mockPaymentsService.create.mockResolvedValue({ id: 1, amount: 1000000 });
 
@@ -43,7 +47,10 @@ describe('PaymentsController', () => {
 
       const result = await controller.findAll({ skip: 0, take: 20 });
 
-      expect(mockPaymentsService.findAll).toHaveBeenCalledWith({ skip: 0, take: 20 });
+      expect(mockPaymentsService.findAll).toHaveBeenCalledWith({
+        skip: 0,
+        take: 20,
+      });
       expect(result).toEqual(paginated);
     });
   });

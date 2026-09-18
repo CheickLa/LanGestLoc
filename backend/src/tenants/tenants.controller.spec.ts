@@ -25,7 +25,13 @@ describe('TenantsController', () => {
 
   describe('POST /tenants', () => {
     it('should call service.create and return result', async () => {
-      const dto = { name: 'Jean', phone: '060102', dateOfBirth: '1990-01-15', birthPlace: 'Conakry', idNumber: 'ID123' };
+      const dto = {
+        name: 'Jean',
+        phone: '060102',
+        dateOfBirth: '1990-01-15',
+        birthPlace: 'Conakry',
+        idNumber: 'ID123',
+      };
       mockTenantsService.create.mockResolvedValue({ id: 1, ...dto });
 
       const result = await controller.create(dto);
@@ -37,12 +43,20 @@ describe('TenantsController', () => {
 
   describe('GET /tenants', () => {
     it('should return paginated tenants', async () => {
-      const paginated = { items: [{ id: 1, name: 'Jean' }], total: 1, skip: 0, take: 20 };
+      const paginated = {
+        items: [{ id: 1, name: 'Jean' }],
+        total: 1,
+        skip: 0,
+        take: 20,
+      };
       mockTenantsService.findAll.mockResolvedValue(paginated);
 
       const result = await controller.findAll({ skip: 0, take: 20 });
 
-      expect(mockTenantsService.findAll).toHaveBeenCalledWith({ skip: 0, take: 20 });
+      expect(mockTenantsService.findAll).toHaveBeenCalledWith({
+        skip: 0,
+        take: 20,
+      });
       expect(result).toEqual(paginated);
     });
   });
@@ -66,7 +80,9 @@ describe('TenantsController', () => {
 
       const result = await controller.update(1, { name: 'Updated' });
 
-      expect(mockTenantsService.update).toHaveBeenCalledWith(1, { name: 'Updated' });
+      expect(mockTenantsService.update).toHaveBeenCalledWith(1, {
+        name: 'Updated',
+      });
       expect(result).toEqual(updated);
     });
   });

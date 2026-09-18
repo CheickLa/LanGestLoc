@@ -49,22 +49,31 @@ describe('RentDueController', () => {
 
   describe('GET /rent-dues/contract/:contractId/pending', () => {
     it('should return pending rent dues', async () => {
-      mockRentDueService.findByContract.mockResolvedValue([{ id: 1, status: 'PENDING' }]);
+      mockRentDueService.findByContract.mockResolvedValue([
+        { id: 1, status: 'PENDING' },
+      ]);
 
       const result = await controller.findPendingByContract(1);
 
-      expect(mockRentDueService.findByContract).toHaveBeenCalledWith(1, RentDueStatus.PENDING);
+      expect(mockRentDueService.findByContract).toHaveBeenCalledWith(
+        1,
+        RentDueStatus.PENDING,
+      );
       expect(result).toEqual([{ id: 1, status: 'PENDING' }]);
     });
   });
 
   describe('POST /rent-dues/cron/generate', () => {
     it('should trigger cron generation', async () => {
-      mockRentDueService.generateForAllActiveContracts.mockResolvedValue(undefined);
+      mockRentDueService.generateForAllActiveContracts.mockResolvedValue(
+        undefined,
+      );
 
       await controller.triggerGenerate();
 
-      expect(mockRentDueService.generateForAllActiveContracts).toHaveBeenCalled();
+      expect(
+        mockRentDueService.generateForAllActiveContracts,
+      ).toHaveBeenCalled();
     });
   });
 

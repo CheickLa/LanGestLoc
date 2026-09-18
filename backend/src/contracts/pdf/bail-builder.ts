@@ -44,7 +44,9 @@ const COLOR = {
 
 // ── Helpers de formatage ──
 function groupAmount(n: number): string {
-  return n.toLocaleString('fr-FR', { maximumFractionDigits: 0 }).replace(/\s/g, ' ');
+  return n
+    .toLocaleString('fr-FR', { maximumFractionDigits: 0 })
+    .replace(/\s/g, ' ');
 }
 
 function amountText(n: number): string {
@@ -79,7 +81,11 @@ function caption(
     .font(F.monoRegular)
     .fontSize(size)
     .fillColor(color)
-    .text(text.toUpperCase(), x, y, { width: w, characterSpacing: 0.5, lineBreak: false });
+    .text(text.toUpperCase(), x, y, {
+      width: w,
+      characterSpacing: 0.5,
+      lineBreak: false,
+    });
 }
 
 export function buildBailPdf(
@@ -90,7 +96,11 @@ export function buildBailPdf(
   representant?: string,
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: MARGIN, bufferPages: true });
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: MARGIN,
+      bufferPages: true,
+    });
     const chunks: Buffer[] = [];
     doc.on('data', (c: Buffer) => chunks.push(c));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -102,8 +112,12 @@ export function buildBailPdf(
       ? `${formatDate(data.startDate)} — ${formatDate(data.endDate)}`
       : `À partir du ${formatDate(data.startDate)}`;
 
-    // Masthead : titre + référence + filet bleu 
-    doc.font(F.sansSemiBold).fontSize(21).fillColor(COLOR.ink).text('Contrat de location', MARGIN, MARGIN);
+    // Masthead : titre + référence + filet bleu
+    doc
+      .font(F.sansSemiBold)
+      .fontSize(21)
+      .fillColor(COLOR.ink)
+      .text('Contrat de location', MARGIN, MARGIN);
     const refY = doc.y + 6;
     doc
       .fontSize(9)
@@ -120,7 +134,12 @@ export function buildBailPdf(
       .fillColor(COLOR.muted)
       .text(today, { continued: false });
     const ruleY = doc.y + 12;
-    doc.lineWidth(1).moveTo(MARGIN, ruleY).lineTo(PAGE_W - MARGIN, ruleY).strokeColor(COLOR.brand).stroke();
+    doc
+      .lineWidth(1)
+      .moveTo(MARGIN, ruleY)
+      .lineTo(PAGE_W - MARGIN, ruleY)
+      .strokeColor(COLOR.brand)
+      .stroke();
 
     // ── Fiche : parties (haut blanc) + termes (bas soft) ──
     const cardX = MARGIN;
@@ -142,19 +161,33 @@ export function buildBailPdf(
     // Séparateurs internes
     doc.lineWidth(1).strokeColor(COLOR.line);
     doc.moveTo(colMid, cardY).lineTo(colMid, termsY).stroke(); // parties : vertical
-    doc.moveTo(cardX, termsY).lineTo(cardX + cardW, termsY).stroke(); // termes : haut
+    doc
+      .moveTo(cardX, termsY)
+      .lineTo(cardX + cardW, termsY)
+      .stroke(); // termes : haut
     for (let i = 1; i < 4; i++) {
       const x = cardX + (cardW * i) / 4;
-      doc.moveTo(x, termsY).lineTo(x, cardY + cardH).stroke();
+      doc
+        .moveTo(x, termsY)
+        .lineTo(x, cardY + cardH)
+        .stroke();
     }
     // Bordure extérieure (par-dessus)
-    doc.roundedRect(cardX, cardY, cardW, cardH, 12).lineWidth(1).strokeColor(COLOR.line).stroke();
+    doc
+      .roundedRect(cardX, cardY, cardW, cardH, 12)
+      .lineWidth(1)
+      .strokeColor(COLOR.line)
+      .stroke();
 
     // Colonne bailleur
     const lx = cardX + 16;
     const lw = cardW / 2 - 32;
     caption(doc, F, 'Bailleur', lx, cardY + 14, lw, COLOR.brand);
-    doc.font(F.sansSemiBold).fontSize(12.5).fillColor(COLOR.ink).text(bailleur, lx, cardY + 30, { width: lw });
+    doc
+      .font(F.sansSemiBold)
+      .fontSize(12.5)
+      .fillColor(COLOR.ink)
+      .text(bailleur, lx, cardY + 30, { width: lw });
     let ly = doc.y + 3;
     doc.font(F.sansRegular).fontSize(9).fillColor(COLOR.muted);
     if (representant) {
@@ -167,9 +200,17 @@ export function buildBailPdf(
     const rx = colMid + 16;
     const rw = cardW / 2 - 32;
     caption(doc, F, 'Locataire', rx, cardY + 14, rw, COLOR.brand);
-    doc.font(F.sansSemiBold).fontSize(12.5).fillColor(COLOR.ink).text(data.tenant.name, rx, cardY + 30, { width: rw });
+    doc
+      .font(F.sansSemiBold)
+      .fontSize(12.5)
+      .fillColor(COLOR.ink)
+      .text(data.tenant.name, rx, cardY + 30, { width: rw });
     let ry = doc.y + 3;
-    doc.font(F.monoRegular).fontSize(9).fillColor(COLOR.muted).text(formatPhone(data.tenant.phone), rx, ry, { width: rw });
+    doc
+      .font(F.monoRegular)
+      .fontSize(9)
+      .fillColor(COLOR.muted)
+      .text(formatPhone(data.tenant.phone), rx, ry, { width: rw });
     ry = doc.y + 1;
     doc
       .font(F.sansRegular)
@@ -199,10 +240,18 @@ export function buildBailPdf(
     };
 
     let t = term(0, 'Local');
-    doc.font(F.sansMedium).fontSize(10.5).fillColor(COLOR.ink).text(data.local.name, t.cx, t.vy, { width: t.cw });
+    doc
+      .font(F.sansMedium)
+      .fontSize(10.5)
+      .fillColor(COLOR.ink)
+      .text(data.local.name, t.cx, t.vy, { width: t.cw });
 
     t = term(1, 'Période');
-    doc.font(F.monoRegular).fontSize(9).fillColor(COLOR.ink).text(periode, t.cx, t.vy, { width: t.cw });
+    doc
+      .font(F.monoRegular)
+      .fontSize(9)
+      .fillColor(COLOR.ink)
+      .text(periode, t.cx, t.vy, { width: t.cw });
 
     t = term(2, 'Loyer mensuel');
     doc
@@ -269,7 +318,12 @@ export function buildBailPdf(
         broke = true;
       }
       if (!first && !broke) {
-        doc.moveTo(MARGIN, doc.y).lineTo(MARGIN + CONTENT_W, doc.y).lineWidth(1).strokeColor(COLOR.line).stroke();
+        doc
+          .moveTo(MARGIN, doc.y)
+          .lineTo(MARGIN + CONTENT_W, doc.y)
+          .lineWidth(1)
+          .strokeColor(COLOR.line)
+          .stroke();
         doc.y += 13;
       }
       const rowY = doc.y;
@@ -277,8 +331,15 @@ export function buildBailPdf(
         .font(F.monoMedium)
         .fontSize(9)
         .fillColor(COLOR.brand)
-        .text(`Art. ${i + 1}`, MARGIN, rowY + 1, { width: gutter - 8, lineBreak: false });
-      doc.font(F.sansSemiBold).fontSize(10.5).fillColor(COLOR.ink).text(c.title, textX, rowY, { width: textW });
+        .text(`Art. ${i + 1}`, MARGIN, rowY + 1, {
+          width: gutter - 8,
+          lineBreak: false,
+        });
+      doc
+        .font(F.sansSemiBold)
+        .fontSize(10.5)
+        .fillColor(COLOR.ink)
+        .text(c.title, textX, rowY, { width: textW });
       doc
         .font(F.sansRegular)
         .fontSize(10)
@@ -295,7 +356,12 @@ export function buildBailPdf(
       .font(F.sansRegular)
       .fontSize(9.5)
       .fillColor(COLOR.muted)
-      .text(`Fait à ${lieu}, le ${today}, en deux exemplaires originaux.`, MARGIN, doc.y, { width: CONTENT_W });
+      .text(
+        `Fait à ${lieu}, le ${today}, en deux exemplaires originaux.`,
+        MARGIN,
+        doc.y,
+        { width: CONTENT_W },
+      );
     doc.y += 26;
 
     const gridY = doc.y;
@@ -311,11 +377,24 @@ export function buildBailPdf(
       const cw = gw - 16;
       caption(doc, F, role, gx, gridY, cw, COLOR.faint, 7.5);
       const lineY = gridY + 44;
-      doc.moveTo(gx, lineY).lineTo(gx + cw, lineY).lineWidth(1).strokeColor(COLOR.ink).stroke();
+      doc
+        .moveTo(gx, lineY)
+        .lineTo(gx + cw, lineY)
+        .lineWidth(1)
+        .strokeColor(COLOR.ink)
+        .stroke();
       if (name) {
-        doc.font(F.sansMedium).fontSize(9).fillColor(COLOR.ink).text(name, gx, lineY + 6, { width: cw });
+        doc
+          .font(F.sansMedium)
+          .fontSize(9)
+          .fillColor(COLOR.ink)
+          .text(name, gx, lineY + 6, { width: cw });
       } else {
-        doc.font(F.sansRegular).fontSize(9).fillColor(COLOR.faint).text('Nom & signature', gx, lineY + 6, { width: cw });
+        doc
+          .font(F.sansRegular)
+          .fontSize(9)
+          .fillColor(COLOR.faint)
+          .text('Nom & signature', gx, lineY + 6, { width: cw });
       }
     });
 
@@ -330,12 +409,18 @@ export function buildBailPdf(
         .font(F.monoRegular)
         .fontSize(7.5)
         .fillColor(COLOR.faint)
-        .text(documentNo, MARGIN, fy, { width: CONTENT_W / 2, lineBreak: false });
+        .text(documentNo, MARGIN, fy, {
+          width: CONTENT_W / 2,
+          lineBreak: false,
+        });
       doc
         .font(F.sansRegular)
         .fontSize(7.5)
         .fillColor(COLOR.faint)
-        .text(`Page ${i - range.start + 1} / ${range.count}`, MARGIN, fy, { width: CONTENT_W, align: 'right' });
+        .text(`Page ${i - range.start + 1} / ${range.count}`, MARGIN, fy, {
+          width: CONTENT_W,
+          align: 'right',
+        });
     }
 
     doc.end();

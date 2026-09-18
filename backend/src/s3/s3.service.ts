@@ -38,7 +38,9 @@ export class S3Service implements OnModuleInit {
       this.logger.log(`Bucket "${this.bucket}" prêt`);
     } catch {
       try {
-        await this.client.send(new CreateBucketCommand({ Bucket: this.bucket }));
+        await this.client.send(
+          new CreateBucketCommand({ Bucket: this.bucket }),
+        );
         this.logger.log(`Bucket "${this.bucket}" créé`);
       } catch {
         this.logger.warn(
@@ -48,7 +50,11 @@ export class S3Service implements OnModuleInit {
     }
   }
 
-  async upload(key: string, body: Buffer, contentType: string): Promise<string> {
+  async upload(
+    key: string,
+    body: Buffer,
+    contentType: string,
+  ): Promise<string> {
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,

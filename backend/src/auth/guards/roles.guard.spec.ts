@@ -17,7 +17,9 @@ describe('RolesGuard', () => {
       getHandler: jest.fn(),
       getClass: jest.fn(),
       switchToHttp: () => ({
-        getRequest: () => ({ user: { id: 1, email: 'test@test.com', role: userRole } }),
+        getRequest: () => ({
+          user: { id: 1, email: 'test@test.com', role: userRole },
+        }),
       }),
     } as unknown as ExecutionContext;
   }
@@ -51,7 +53,9 @@ describe('RolesGuard', () => {
   });
 
   it('should allow access when user has one of multiple required roles', () => {
-    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([Role.ADMIN, Role.USER]);
+    jest
+      .spyOn(reflector, 'getAllAndOverride')
+      .mockReturnValue([Role.ADMIN, Role.USER]);
     const context = createMockContext(Role.USER);
 
     expect(guard.canActivate(context)).toBe(true);

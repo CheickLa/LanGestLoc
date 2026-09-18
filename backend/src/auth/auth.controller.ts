@@ -36,9 +36,15 @@ export class AuthController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Créer un nouveau compte (ADMIN uniquement)' })
-  @ApiCreatedResponse({ description: 'Compte créé, retourne un accessToken', type: AuthTokenEntity })
+  @ApiCreatedResponse({
+    description: 'Compte créé, retourne un accessToken',
+    type: AuthTokenEntity,
+  })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès réservé aux administrateurs',
+  })
   @ApiResponse({ status: 409, description: 'Email déjà utilisé' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
@@ -49,7 +55,10 @@ export class AuthController {
   @UseGuards(LocalAuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Se connecter' })
-  @ApiOkResponse({ description: 'Connexion réussie, retourne un accessToken', type: AuthTokenEntity })
+  @ApiOkResponse({
+    description: 'Connexion réussie, retourne un accessToken',
+    type: AuthTokenEntity,
+  })
   @ApiResponse({ status: 401, description: 'Email ou mot de passe incorrect' })
   login(@Request() req, @Body() _dto: LoginDto) {
     return this.authService.login(req.user);
@@ -59,7 +68,10 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Récupérer le profil connecté' })
-  @ApiOkResponse({ description: 'Profil de l\'utilisateur connecté', type: UserEntity })
+  @ApiOkResponse({
+    description: "Profil de l'utilisateur connecté",
+    type: UserEntity,
+  })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   getProfile(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.getProfile(user.id);

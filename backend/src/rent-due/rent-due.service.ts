@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CreateRentDueDto } from './dto/create-rent-due.dto';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -22,8 +27,11 @@ export class RentDueService {
     // dueDate = 5 du mois suivant
     const dueDate = new Date(Date.UTC(year, monthIndex, EcheanceDay));
 
-    const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
-    if (!contract) throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+    });
+    if (!contract)
+      throw new NotFoundException(`Contrat #${contractId} non trouvé`);
     if (contract.status !== ContractStatus.ACTIVE) {
       throw new ConflictException(`Le contrat #${contractId} n'est pas actif`);
     }
@@ -32,7 +40,9 @@ export class RentDueService {
       where: { contractId_month: { contractId, month: monthDate } },
     });
     if (existing) {
-      throw new ConflictException(`Une échéance existe déjà pour le contrat #${contractId} sur ${month}`);
+      throw new ConflictException(
+        `Une échéance existe déjà pour le contrat #${contractId} sur ${month}`,
+      );
     }
 
     // Cherche un loyer actif à n'importe quel moment du mois (pas seulement au 1er)
@@ -45,7 +55,9 @@ export class RentDueService {
       orderBy: { effectiveFrom: 'desc' },
     });
     if (!activeRent) {
-      throw new NotFoundException(`Aucun loyer actif trouvé pour le contrat #${contractId} sur ${month}`);
+      throw new NotFoundException(
+        `Aucun loyer actif trouvé pour le contrat #${contractId} sur ${month}`,
+      );
     }
 
     return this.prisma.rentDue.create({
@@ -61,8 +73,11 @@ export class RentDueService {
 
   // Liste toutes les échéances d'un contrat, triées par mois décroissant
   async findAllByContract(contractId: number) {
-    const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
-    if (!contract) throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+    });
+    if (!contract)
+      throw new NotFoundException(`Contrat #${contractId} non trouvé`);
 
     return this.prisma.rentDue.findMany({
       where: { contractId },
@@ -72,8 +87,11 @@ export class RentDueService {
 
   // Liste les échéances d'un contrat filtrées par statut
   async findByContract(contractId: number, status: RentDueStatus) {
-    const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
-    if (!contract) throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+    });
+    if (!contract)
+      throw new NotFoundException(`Contrat #${contractId} non trouvé`);
 
     return this.prisma.rentDue.findMany({
       where: { contractId, status },
@@ -105,13 +123,17 @@ export class RentDueService {
         if (e instanceof ConflictException) {
           skipped++;
         } else {
-          this.logger.error(`Cron génération RentDue erreur contrat #${contract.id} : ${e instanceof Error ? e.message : String(e)}`);
+          this.logger.error(
+            `Cron génération RentDue erreur contrat #${contract.id} : ${e instanceof Error ? e.message : String(e)}`,
+          );
           skipped++;
         }
       }
     }
 
-    this.logger.log(`Cron génération RentDue terminé : ${created} créées, ${skipped} ignorées`);
+    this.logger.log(
+      `Cron génération RentDue terminé : ${created} créées, ${skipped} ignorées`,
+    );
   }
 
   // Cron : chaque nuit à 00:00 UTC qui fait passer en LATE les échéances PENDING échues
@@ -127,7 +149,9 @@ export class RentDueService {
     });
 
     if (result.count > 0) {
-      this.logger.log(`Cron LATE : ${result.count} échéance(s) passée(s) en LATE`);
+      this.logger.log(
+        `Cron LATE : ${result.count} échéance(s) passée(s) en LATE`,
+      );
     }
   }
 }

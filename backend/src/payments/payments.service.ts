@@ -41,19 +41,26 @@ export class PaymentsService {
     if (rentDues.length !== uniqueIds.length) {
       const foundIds = rentDues.map((r) => r.id);
       const missing = uniqueIds.filter((id) => !foundIds.includes(id));
-      throw new NotFoundException(`Échéances introuvables : ${missing.join(', ')}`);
+      throw new NotFoundException(
+        `Échéances introuvables : ${missing.join(', ')}`,
+      );
     }
 
     // Vérif que toutes appartiennent au même contrat
     const contractIds = [...new Set(rentDues.map((r) => r.contractId))];
     if (contractIds.length > 1) {
-      throw new BadRequestException('Toutes les échéances doivent appartenir au même contrat');
+      throw new BadRequestException(
+        'Toutes les échéances doivent appartenir au même contrat',
+      );
     }
     const contractId = contractIds[0];
 
     // Vérif que le contrat est ACTIVE (pas de paiement sur TERMINATED ou CANCELED)
-    const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
-    if (!contract) throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+    });
+    if (!contract)
+      throw new NotFoundException(`Contrat #${contractId} non trouvé`);
     if (contract.status !== ContractStatus.ACTIVE) {
       throw new BadRequestException(
         `Impossible de payer sur un contrat ${contract.status.toLowerCase()}`,
@@ -70,7 +77,9 @@ export class PaymentsService {
 
     const paymentDateObj = new Date(paymentDate);
     if (paymentDateObj.getTime() > Date.now()) {
-      throw new BadRequestException('La date de paiement ne peut pas être dans le futur');
+      throw new BadRequestException(
+        'La date de paiement ne peut pas être dans le futur',
+      );
     }
     if (paymentDateObj < contract.startDate) {
       throw new BadRequestException(
@@ -113,14 +122,20 @@ export class PaymentsService {
       try {
         await this.receiptsService.generate(payment.id);
       } catch (error) {
-        this.logger.error(`Échec génération reçu pour paiement #${payment.id}`, error);
+        this.logger.error(
+          `Échec génération reçu pour paiement #${payment.id}`,
+          error,
+        );
       }
 
       return payment;
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
         throw new ConflictException(
-          'Une ou plusieurs échéances viennent d\'être soldées par un autre paiement',
+          "Une ou plusieurs échéances viennent d'être soldées par un autre paiement",
         );
       }
       throw error;
@@ -218,7 +233,10 @@ export class PaymentsService {
     try {
       await this.receiptsService.generate(paymentId);
     } catch (error) {
-      this.logger.error(`Échec génération reçu pour paiement #${paymentId}`, error);
+      this.logger.error(
+        `Échec génération reçu pour paiement #${paymentId}`,
+        error,
+      );
     }
   }
 
@@ -240,8 +258,11 @@ export class PaymentsService {
   }
 
   async findAllByContract(contractId: number) {
-    const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
-    if (!contract) throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+    });
+    if (!contract)
+      throw new NotFoundException(`Contrat #${contractId} non trouvé`);
 
     return this.prisma.payment.findMany({
       where: { contractId },

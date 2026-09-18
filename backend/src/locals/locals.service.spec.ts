@@ -39,7 +39,9 @@ describe('LocalsService', () => {
 
       const result = await service.create(dto);
 
-      expect(mockPrisma.local.findUnique).toHaveBeenCalledWith({ where: { code: 'LOCAL-001' } });
+      expect(mockPrisma.local.findUnique).toHaveBeenCalledWith({
+        where: { code: 'LOCAL-001' },
+      });
       expect(result).toEqual({ id: 1, ...dto });
     });
 
@@ -136,7 +138,9 @@ describe('LocalsService', () => {
       expect(mockPrisma.local.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expectedWhere }),
       );
-      expect(mockPrisma.local.count).toHaveBeenCalledWith({ where: expectedWhere });
+      expect(mockPrisma.local.count).toHaveBeenCalledWith({
+        where: expectedWhere,
+      });
     });
   });
 
@@ -162,7 +166,10 @@ describe('LocalsService', () => {
 
     it('should update a local', async () => {
       mockPrisma.local.findUnique.mockResolvedValue(existing);
-      mockPrisma.local.update.mockResolvedValue({ ...existing, name: 'B1 updated' });
+      mockPrisma.local.update.mockResolvedValue({
+        ...existing,
+        name: 'B1 updated',
+      });
 
       const result = await service.update(1, { name: 'B1 updated' });
 
@@ -172,7 +179,9 @@ describe('LocalsService', () => {
     it('should throw NotFoundException when local does not exist', async () => {
       mockPrisma.local.findUnique.mockResolvedValue(null);
 
-      await expect(service.update(999, { name: 'X' })).rejects.toThrow(NotFoundException);
+      await expect(service.update(999, { name: 'X' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw ConflictException when updating to an existing code', async () => {
@@ -180,7 +189,9 @@ describe('LocalsService', () => {
         .mockResolvedValueOnce(existing) // findUnique for the local being updated
         .mockResolvedValueOnce({ id: 2, code: 'LOCAL-002', name: 'B2' }); // findUnique for duplicate check
 
-      await expect(service.update(1, { code: 'LOCAL-002' })).rejects.toThrow(ConflictException);
+      await expect(service.update(1, { code: 'LOCAL-002' })).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('should allow updating to the same code', async () => {
@@ -202,7 +213,9 @@ describe('LocalsService', () => {
 
       const result = await service.remove(1);
 
-      expect(mockPrisma.local.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(mockPrisma.local.delete).toHaveBeenCalledWith({
+        where: { id: 1 },
+      });
       expect(result).toEqual({ id: 1 });
     });
 
@@ -213,7 +226,10 @@ describe('LocalsService', () => {
     });
 
     it('should throw ConflictException when local has contracts', async () => {
-      mockPrisma.local.findUnique.mockResolvedValue({ id: 1, contracts: [{ id: 1 }] });
+      mockPrisma.local.findUnique.mockResolvedValue({
+        id: 1,
+        contracts: [{ id: 1 }],
+      });
 
       await expect(service.remove(1)).rejects.toThrow(ConflictException);
     });

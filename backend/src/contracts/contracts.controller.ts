@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, ParseIntPipe, UseGuards, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Body,
+  Param,
+  Query,
+  ParseIntPipe,
+  UseGuards,
+  Res,
+} from '@nestjs/common';
 import {
   ApiOperation,
   ApiTags,
@@ -40,13 +51,22 @@ export class ContractsController {
   @Post()
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Créer un contrat de location (ADMIN)' })
-  @ApiCreatedResponse({ description: 'Contrat créé avec succès', type: ContractEntity })
+  @ApiCreatedResponse({
+    description: 'Contrat créé avec succès',
+    type: ContractEntity,
+  })
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès réservé aux administrateurs',
+  })
   @ApiResponse({ status: 404, description: 'Local ou locataire non trouvé' })
   @ApiResponse({ status: 409, description: 'Le local a déjà un contrat actif' })
-  create(@Body() createContractDto: CreateContractDto, @CurrentUser() user: AuthenticatedUser) {
+  create(
+    @Body() createContractDto: CreateContractDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.contractsService.create(createContractDto, user.id);
   }
 
@@ -77,8 +97,12 @@ export class ContractsController {
   })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
-  async downloadDocument(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
-    const { buffer, documentNo } = await this.contractDocumentsService.download(id);
+  async downloadDocument(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const { buffer, documentNo } =
+      await this.contractDocumentsService.download(id);
 
     res.set({
       'Content-Type': 'application/pdf',
@@ -91,10 +115,16 @@ export class ContractsController {
   @Patch(':id/terminate')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Résilier un contrat (ADMIN)' })
-  @ApiOkResponse({ description: 'Contrat résilié avec succès', type: ContractDetailEntity })
+  @ApiOkResponse({
+    description: 'Contrat résilié avec succès',
+    type: ContractDetailEntity,
+  })
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès réservé aux administrateurs',
+  })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
   @ApiResponse({ status: 409, description: "Le contrat n'est pas actif" })
   terminate(
@@ -107,13 +137,26 @@ export class ContractsController {
 
   @Patch(':id/cancel')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: "Annuler un contrat avec remboursement de la caution (ADMIN, uniquement si aucun paiement de loyer n'existe)" })
-  @ApiOkResponse({ description: 'Contrat annulé avec succès', type: ContractEntity })
+  @ApiOperation({
+    summary:
+      "Annuler un contrat avec remboursement de la caution (ADMIN, uniquement si aucun paiement de loyer n'existe)",
+  })
+  @ApiOkResponse({
+    description: 'Contrat annulé avec succès',
+    type: ContractEntity,
+  })
   @ApiResponse({ status: 400, description: 'Données invalides' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès réservé aux administrateurs',
+  })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
-  @ApiResponse({ status: 409, description: "Impossible d'annuler : paiement de loyer existant ou contrat non actif" })
+  @ApiResponse({
+    status: 409,
+    description:
+      "Impossible d'annuler : paiement de loyer existant ou contrat non actif",
+  })
   cancel(
     @Param('id', ParseIntPipe) id: number,
     @Body() cancelContractDto: CancelContractDto,

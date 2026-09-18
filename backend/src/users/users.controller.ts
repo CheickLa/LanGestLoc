@@ -44,7 +44,10 @@ export class UsersController {
   @ApiOkResponse({ description: 'Profil mis à jour', type: UserEntity })
   @ApiResponse({ status: 400, description: 'Aucune donnée à mettre à jour' })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 409, description: 'Un utilisateur avec cet email existe déjà' })
+  @ApiResponse({
+    status: 409,
+    description: 'Un utilisateur avec cet email existe déjà',
+  })
   updateMe(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() dto: UpdateUserDto,
@@ -55,9 +58,18 @@ export class UsersController {
   @Patch('me/password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Changer son mot de passe' })
-  @ApiOkResponse({ description: 'Mot de passe mis à jour', type: MessageEntity })
-  @ApiResponse({ status: 400, description: 'Nouveau mot de passe identique à l\'actuel' })
-  @ApiResponse({ status: 401, description: 'Mot de passe actuel incorrect ou token invalide' })
+  @ApiOkResponse({
+    description: 'Mot de passe mis à jour',
+    type: MessageEntity,
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Nouveau mot de passe identique à l'actuel",
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Mot de passe actuel incorrect ou token invalide',
+  })
   changePassword(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() dto: ChangePasswordDto,
@@ -70,7 +82,10 @@ export class UsersController {
   @ApiOperation({ summary: 'Lister tous les utilisateurs (ADMIN)' })
   @ApiPaginatedResponse(UserEntity)
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès réservé aux administrateurs',
+  })
   findAll(@Query() pagination: PaginationDto) {
     return this.usersService.findAll(pagination);
   }
@@ -78,10 +93,13 @@ export class UsersController {
   @Get(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Récupérer un utilisateur par ID (ADMIN)' })
-  @ApiParam({ name: 'id', description: 'ID de l\'utilisateur', type: Number })
+  @ApiParam({ name: 'id', description: "ID de l'utilisateur", type: Number })
   @ApiOkResponse({ description: 'Utilisateur trouvé', type: UserEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès réservé aux administrateurs',
+  })
   @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.usersService.findOne(id);
@@ -90,13 +108,22 @@ export class UsersController {
   @Patch(':id')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Modifier un utilisateur (ADMIN)' })
-  @ApiParam({ name: 'id', description: 'ID de l\'utilisateur', type: Number })
+  @ApiParam({ name: 'id', description: "ID de l'utilisateur", type: Number })
   @ApiOkResponse({ description: 'Utilisateur mis à jour', type: UserEntity })
-  @ApiResponse({ status: 400, description: 'Aucune donnée à mettre à jour ou dernier ADMIN' })
+  @ApiResponse({
+    status: 400,
+    description: 'Aucune donnée à mettre à jour ou dernier ADMIN',
+  })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès réservé aux administrateurs',
+  })
   @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
-  @ApiResponse({ status: 409, description: 'Un utilisateur avec cet email existe déjà' })
+  @ApiResponse({
+    status: 409,
+    description: 'Un utilisateur avec cet email existe déjà',
+  })
   adminUpdate(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AdminUpdateUserDto,
@@ -108,13 +135,22 @@ export class UsersController {
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Supprimer un utilisateur (ADMIN)' })
-  @ApiParam({ name: 'id', description: 'ID de l\'utilisateur', type: Number })
+  @ApiParam({ name: 'id', description: "ID de l'utilisateur", type: Number })
   @ApiResponse({ status: 204, description: 'Utilisateur supprimé' })
-  @ApiResponse({ status: 400, description: 'Auto-suppression interdite ou dernier ADMIN' })
+  @ApiResponse({
+    status: 400,
+    description: 'Auto-suppression interdite ou dernier ADMIN',
+  })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès réservé aux administrateurs',
+  })
   @ApiResponse({ status: 404, description: 'Utilisateur non trouvé' })
-  @ApiResponse({ status: 409, description: 'Utilisateur lié à des contrats ou paiements' })
+  @ApiResponse({
+    status: 409,
+    description: 'Utilisateur lié à des contrats ou paiements',
+  })
   remove(
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('id', ParseIntPipe) id: number,

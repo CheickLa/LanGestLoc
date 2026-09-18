@@ -36,12 +36,18 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
-    const dto = { name: 'John', email: 'john@test.com', password: 'Password123' };
+    const dto = {
+      name: 'John',
+      email: 'john@test.com',
+      password: 'Password123',
+    };
 
     it('should hash password, create user with Role.USER by default, and return token', async () => {
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
       mockPrisma.user.create.mockResolvedValue({
-        id: 1, email: dto.email, role: Role.USER,
+        id: 1,
+        email: dto.email,
+        role: Role.USER,
       });
 
       const result = await service.register(dto);
@@ -56,7 +62,9 @@ describe('AuthService', () => {
         },
       });
       expect(mockJwtService.sign).toHaveBeenCalledWith({
-        sub: 1, email: dto.email, role: Role.USER,
+        sub: 1,
+        email: dto.email,
+        role: Role.USER,
       });
       expect(result).toEqual({ accessToken: 'mock-jwt-token' });
     });
@@ -65,7 +73,9 @@ describe('AuthService', () => {
       const adminDto = { ...dto, role: Role.ADMIN };
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
       mockPrisma.user.create.mockResolvedValue({
-        id: 1, email: dto.email, role: Role.ADMIN,
+        id: 1,
+        email: dto.email,
+        role: Role.ADMIN,
       });
 
       await service.register(adminDto);
@@ -77,10 +87,13 @@ describe('AuthService', () => {
 
     it('should throw ConflictException on duplicate email', async () => {
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
-      const prismaError = new Prisma.PrismaClientKnownRequestError('Unique constraint', {
-        code: 'P2002',
-        clientVersion: '5.0.0',
-      });
+      const prismaError = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint',
+        {
+          code: 'P2002',
+          clientVersion: '5.0.0',
+        },
+      );
       mockPrisma.user.create.mockRejectedValue(prismaError);
 
       await expect(service.register(dto)).rejects.toThrow(ConflictException);
@@ -100,7 +113,11 @@ describe('AuthService', () => {
 
     it('should return user data on valid credentials', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
-        id: 1, email, name: 'John', role: Role.USER, password: 'hashed',
+        id: 1,
+        email,
+        name: 'John',
+        role: Role.USER,
+        password: 'hashed',
       });
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
@@ -119,7 +136,11 @@ describe('AuthService', () => {
 
     it('should throw UnauthorizedException if password is invalid', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
-        id: 1, email, name: 'John', role: Role.USER, password: 'hashed',
+        id: 1,
+        email,
+        name: 'John',
+        role: Role.USER,
+        password: 'hashed',
       });
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
@@ -136,7 +157,9 @@ describe('AuthService', () => {
       const result = await service.login(user);
 
       expect(mockJwtService.sign).toHaveBeenCalledWith({
-        sub: 1, email: user.email, role: Role.USER,
+        sub: 1,
+        email: user.email,
+        role: Role.USER,
       });
       expect(result).toEqual({ accessToken: 'mock-jwt-token' });
     });
@@ -145,8 +168,11 @@ describe('AuthService', () => {
   describe('getProfile', () => {
     it('should return user profile without password', async () => {
       const profile = {
-        id: 1, name: 'John', email: 'john@test.com',
-        role: Role.USER, createdAt: new Date(),
+        id: 1,
+        name: 'John',
+        email: 'john@test.com',
+        role: Role.USER,
+        createdAt: new Date(),
       };
       mockPrisma.user.findUnique.mockResolvedValue(profile);
 
@@ -154,7 +180,13 @@ describe('AuthService', () => {
 
       expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: 1 },
-        select: { id: true, name: true, email: true, role: true, createdAt: true },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
       });
       expect(result).toEqual(profile);
     });
@@ -162,7 +194,9 @@ describe('AuthService', () => {
     it('should throw UnauthorizedException if user not found', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.getProfile(999)).rejects.toThrow(UnauthorizedException);
+      await expect(service.getProfile(999)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 });
