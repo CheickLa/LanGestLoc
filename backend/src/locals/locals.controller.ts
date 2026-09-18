@@ -38,16 +38,27 @@ export class LocalsController {
   @Post()
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Créer un local (ADMIN)' })
-  @ApiCreatedResponse({ description: 'Local créé avec succès', type: LocalEntity })
+  @ApiCreatedResponse({
+    description: 'Local créé avec succès',
+    type: LocalEntity,
+  })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
-  @ApiResponse({ status: 409, description: 'Un local avec ce code existe déjà' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès réservé aux administrateurs',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Un local avec ce code existe déjà',
+  })
   create(@Body() createLocalDto: CreateLocalDto) {
     return this.localsService.create(createLocalDto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Récupérer tous les locaux (recherche + pagination)' })
+  @ApiOperation({
+    summary: 'Récupérer tous les locaux (recherche + pagination)',
+  })
   @ApiPaginatedResponse(LocalListItemEntity)
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   findAll(@Query() query: FindLocalsQueryDto) {
@@ -68,9 +79,15 @@ export class LocalsController {
   @ApiOperation({ summary: 'Mettre à jour un local (ADMIN)' })
   @ApiOkResponse({ description: 'Local mis à jour', type: LocalEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès réservé aux administrateurs',
+  })
   @ApiResponse({ status: 404, description: 'Local non trouvé' })
-  @ApiResponse({ status: 409, description: 'Un local avec ce code existe déjà' })
+  @ApiResponse({
+    status: 409,
+    description: 'Un local avec ce code existe déjà',
+  })
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateLocalDto: UpdateLocalDto,
@@ -83,9 +100,15 @@ export class LocalsController {
   @ApiOperation({ summary: 'Supprimer un local (ADMIN)' })
   @ApiOkResponse({ description: 'Local supprimé', type: LocalEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 403, description: 'Accès réservé aux administrateurs' })
+  @ApiResponse({
+    status: 403,
+    description: 'Accès réservé aux administrateurs',
+  })
   @ApiResponse({ status: 404, description: 'Local non trouvé' })
-  @ApiResponse({ status: 409, description: 'Impossible, des contrats ont été associés à ce local' })
+  @ApiResponse({
+    status: 409,
+    description: 'Impossible, des contrats ont été associés à ce local',
+  })
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.localsService.remove(id);
   }

@@ -44,10 +44,14 @@ export class UsersService {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {
-          throw new ConflictException(`Un utilisateur avec l'email ${dto.email} existe déjà`);
+          throw new ConflictException(
+            `Un utilisateur avec l'email ${dto.email} existe déjà`,
+          );
         }
         if (error.code === 'P2025') {
-          throw new NotFoundException(`Utilisateur avec l'ID ${userId} non trouvé`);
+          throw new NotFoundException(
+            `Utilisateur avec l'ID ${userId} non trouvé`,
+          );
         }
       }
       throw error;
@@ -70,7 +74,10 @@ export class UsersService {
       throw new NotFoundException(`Utilisateur avec l'ID ${userId} non trouvé`);
     }
 
-    const isCurrentValid = await bcrypt.compare(dto.currentPassword, user.password);
+    const isCurrentValid = await bcrypt.compare(
+      dto.currentPassword,
+      user.password,
+    );
     if (!isCurrentValid) {
       throw new UnauthorizedException('Mot de passe actuel incorrect');
     }
@@ -111,7 +118,11 @@ export class UsersService {
   }
 
   async adminUpdate(id: number, dto: AdminUpdateUserDto) {
-    if (dto.name === undefined && dto.email === undefined && dto.role === undefined) {
+    if (
+      dto.name === undefined &&
+      dto.email === undefined &&
+      dto.role === undefined
+    ) {
       throw new BadRequestException('Aucune donnée à mettre à jour');
     }
 
@@ -123,7 +134,9 @@ export class UsersService {
             select: { id: true, role: true },
           });
           if (!target) {
-            throw new NotFoundException(`Utilisateur avec l'ID ${id} non trouvé`);
+            throw new NotFoundException(
+              `Utilisateur avec l'ID ${id} non trouvé`,
+            );
           }
 
           if (
@@ -147,8 +160,13 @@ export class UsersService {
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException(`Un utilisateur avec l'email ${dto.email} existe déjà`);
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          `Un utilisateur avec l'email ${dto.email} existe déjà`,
+        );
       }
       throw error;
     }
@@ -156,7 +174,9 @@ export class UsersService {
 
   async remove(id: number, currentUserId: number) {
     if (id === currentUserId) {
-      throw new BadRequestException('Vous ne pouvez pas supprimer votre propre compte');
+      throw new BadRequestException(
+        'Vous ne pouvez pas supprimer votre propre compte',
+      );
     }
 
     await this.prisma.$transaction(

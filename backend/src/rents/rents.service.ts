@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { CreateRentDto } from './dto/create-rent.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ContractStatus } from '@generated/prisma/client';
@@ -11,15 +16,22 @@ export class RentsService {
     const { contractId, amount, effectiveFrom } = dto;
     const newEffectiveFrom = new Date(effectiveFrom);
 
-    const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
-    if (!contract) throw new NotFoundException(`Contrat #${contractId} non trouvé`);
-    if (contract.status !== ContractStatus.ACTIVE) throw new ConflictException(`Le contrat #${contractId} n'est pas actif`);
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+    });
+    if (!contract)
+      throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+    if (contract.status !== ContractStatus.ACTIVE)
+      throw new ConflictException(`Le contrat #${contractId} n'est pas actif`);
 
     // Trouver le loyer actif (effectiveTo = null)
     const activeRent = await this.prisma.rent.findFirst({
       where: { contractId, effectiveTo: null },
     });
-    if (!activeRent) throw new ConflictException(`Aucun loyer actif trouvé sur le contrat #${contractId}`);
+    if (!activeRent)
+      throw new ConflictException(
+        `Aucun loyer actif trouvé sur le contrat #${contractId}`,
+      );
 
     // Une augmentation : le nouveau montant doit être strictement supérieur à l'actuel
     if (amount <= activeRent.amount) {
@@ -66,19 +78,28 @@ export class RentsService {
   }
 
   async findCurrent(contractId: number) {
-    const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
-    if (!contract) throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+    });
+    if (!contract)
+      throw new NotFoundException(`Contrat #${contractId} non trouvé`);
 
     const rent = await this.prisma.rent.findFirst({
       where: { contractId, effectiveTo: null },
     });
-    if (!rent) throw new NotFoundException(`Aucun loyer actif sur le contrat #${contractId}`);
+    if (!rent)
+      throw new NotFoundException(
+        `Aucun loyer actif sur le contrat #${contractId}`,
+      );
     return rent;
   }
 
   async findAllByContract(contractId: number) {
-    const contract = await this.prisma.contract.findUnique({ where: { id: contractId } });
-    if (!contract) throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+    const contract = await this.prisma.contract.findUnique({
+      where: { id: contractId },
+    });
+    if (!contract)
+      throw new NotFoundException(`Contrat #${contractId} non trouvé`);
 
     return this.prisma.rent.findMany({
       where: { contractId },
@@ -86,5 +107,3 @@ export class RentsService {
     });
   }
 }
-
-

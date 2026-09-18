@@ -1,5 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ReceiptsService } from './receipts.service';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -29,7 +32,9 @@ const mockConfig = {
   }),
 };
 
-jest.spyOn(pdfBuilder, 'buildReceiptPdf').mockResolvedValue(Buffer.from('fake-pdf'));
+jest
+  .spyOn(pdfBuilder, 'buildReceiptPdf')
+  .mockResolvedValue(Buffer.from('fake-pdf'));
 
 describe('ReceiptsService', () => {
   let service: ReceiptsService;
@@ -72,7 +77,9 @@ describe('ReceiptsService', () => {
     it('should generate a new receipt with sequential number', async () => {
       mockPrisma.receipt.findUnique.mockResolvedValue(null);
       mockPrisma.payment.findUnique.mockResolvedValue(payment);
-      mockTx.receipt.findFirst.mockResolvedValue({ receiptNo: 'REC-2026-00003' });
+      mockTx.receipt.findFirst.mockResolvedValue({
+        receiptNo: 'REC-2026-00003',
+      });
       const created = { id: 1, paymentId: 1, receiptNo: 'REC-2026-00004' };
       mockTx.receipt.create.mockResolvedValue(created);
 
@@ -96,7 +103,10 @@ describe('ReceiptsService', () => {
       mockPrisma.receipt.findUnique.mockResolvedValue(null);
       mockPrisma.payment.findUnique.mockResolvedValue(payment);
       mockTx.receipt.findFirst.mockResolvedValue(null);
-      mockTx.receipt.create.mockResolvedValue({ id: 1, receiptNo: 'REC-2026-00001' });
+      mockTx.receipt.create.mockResolvedValue({
+        id: 1,
+        receiptNo: 'REC-2026-00001',
+      });
 
       await service.generate(1);
 
@@ -128,21 +138,32 @@ describe('ReceiptsService', () => {
     it('should throw NotFoundException when no receipt exists', async () => {
       mockPrisma.receipt.findUnique.mockResolvedValue(null);
 
-      await expect(service.findByPayment(999)).rejects.toThrow(NotFoundException);
+      await expect(service.findByPayment(999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('download', () => {
     it('should return buffer and receiptNo', async () => {
-      const receipt = { id: 1, receiptNo: 'REC-2026-00001', s3Key: 'receipts/2026/REC-2026-00001.pdf' };
+      const receipt = {
+        id: 1,
+        receiptNo: 'REC-2026-00001',
+        s3Key: 'receipts/2026/REC-2026-00001.pdf',
+      };
       mockPrisma.receipt.findUnique.mockResolvedValue(receipt);
       const pdfBuffer = Buffer.from('pdf-content');
       mockS3.getObject.mockResolvedValue(pdfBuffer);
 
       const result = await service.download(1);
 
-      expect(result).toEqual({ buffer: pdfBuffer, receiptNo: 'REC-2026-00001' });
-      expect(mockS3.getObject).toHaveBeenCalledWith('receipts/2026/REC-2026-00001.pdf');
+      expect(result).toEqual({
+        buffer: pdfBuffer,
+        receiptNo: 'REC-2026-00001',
+      });
+      expect(mockS3.getObject).toHaveBeenCalledWith(
+        'receipts/2026/REC-2026-00001.pdf',
+      );
     });
 
     it('should throw NotFoundException when receipt does not exist', async () => {
@@ -152,11 +173,17 @@ describe('ReceiptsService', () => {
     });
 
     it('should throw InternalServerErrorException when S3 fails', async () => {
-      const receipt = { id: 1, receiptNo: 'REC-2026-00001', s3Key: 'receipts/2026/REC-2026-00001.pdf' };
+      const receipt = {
+        id: 1,
+        receiptNo: 'REC-2026-00001',
+        s3Key: 'receipts/2026/REC-2026-00001.pdf',
+      };
       mockPrisma.receipt.findUnique.mockResolvedValue(receipt);
       mockS3.getObject.mockRejectedValue(new Error('S3 down'));
 
-      await expect(service.download(1)).rejects.toThrow(InternalServerErrorException);
+      await expect(service.download(1)).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 });

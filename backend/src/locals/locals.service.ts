@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateLocalDto } from './dto/create-local.dto';
 import { UpdateLocalDto } from './dto/update-local.dto';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -15,7 +19,9 @@ export class LocalsService {
     });
 
     if (existingLocal) {
-      throw new ConflictException(`Un local avec le code ${createLocalDto.code} existe déjà`);
+      throw new ConflictException(
+        `Un local avec le code ${createLocalDto.code} existe déjà`,
+      );
     }
 
     return this.prisma.local.create({
@@ -69,7 +75,7 @@ export class LocalsService {
 
   async findOne(id: number) {
     const local = await this.prisma.local.findUnique({ where: { id } });
-    
+
     if (!local) {
       throw new NotFoundException(`Local avec l'ID ${id} non trouvé`);
     }
@@ -89,7 +95,9 @@ export class LocalsService {
         where: { code: updateLocalDto.code },
       });
       if (existing) {
-        throw new ConflictException(`Un local avec le code ${updateLocalDto.code} existe déjà`);
+        throw new ConflictException(
+          `Un local avec le code ${updateLocalDto.code} existe déjà`,
+        );
       }
     }
 
@@ -99,7 +107,7 @@ export class LocalsService {
     });
   }
 
- async remove(id: number) {
+  async remove(id: number) {
     const local = await this.prisma.local.findUnique({
       where: { id },
       include: { contracts: { take: 1 } },

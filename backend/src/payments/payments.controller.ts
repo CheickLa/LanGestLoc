@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  ParseIntPipe,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -28,8 +37,14 @@ export class PaymentsController {
 
   @Post()
   @ApiOperation({ summary: 'Enregistrer un paiement (un ou plusieurs mois)' })
-  @ApiCreatedResponse({ description: 'Paiement enregistré', type: PaymentWithLinesEntity })
-  @ApiResponse({ status: 400, description: 'Données invalides ou contrat annulé' })
+  @ApiCreatedResponse({
+    description: 'Paiement enregistré',
+    type: PaymentWithLinesEntity,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Données invalides ou contrat annulé',
+  })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Échéances ou contrat non trouvés' })
   @ApiResponse({ status: 409, description: 'Échéances déjà soldées' })
@@ -46,8 +61,12 @@ export class PaymentsController {
   }
 
   @Get('contract/:contractId')
-  @ApiOperation({ summary: 'Lister les paiements d\'un contrat' })
-  @ApiOkResponse({ description: 'Liste des paiements du contrat', type: PaymentWithLinesEntity, isArray: true })
+  @ApiOperation({ summary: "Lister les paiements d'un contrat" })
+  @ApiOkResponse({
+    description: 'Liste des paiements du contrat',
+    type: PaymentWithLinesEntity,
+    isArray: true,
+  })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
   findAllByContract(@Param('contractId', ParseIntPipe) contractId: number) {
@@ -55,8 +74,11 @@ export class PaymentsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Détail d\'un paiement' })
-  @ApiOkResponse({ description: 'Détail du paiement', type: PaymentDetailEntity })
+  @ApiOperation({ summary: "Détail d'un paiement" })
+  @ApiOkResponse({
+    description: 'Détail du paiement',
+    type: PaymentDetailEntity,
+  })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Paiement non trouvé' })
   findOne(@Param('id', ParseIntPipe) id: number) {

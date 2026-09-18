@@ -25,7 +25,10 @@ describe('ContractsController', () => {
       controllers: [ContractsController],
       providers: [
         { provide: ContractsService, useValue: mockContractsService },
-        { provide: ContractDocumentsService, useValue: mockContractDocumentsService },
+        {
+          provide: ContractDocumentsService,
+          useValue: mockContractDocumentsService,
+        },
       ],
     }).compile();
 
@@ -60,12 +63,20 @@ describe('ContractsController', () => {
 
       const result = await controller.findAll({ skip: 0, take: 20 });
 
-      expect(mockContractsService.findAll).toHaveBeenCalledWith({ skip: 0, take: 20 });
+      expect(mockContractsService.findAll).toHaveBeenCalledWith({
+        skip: 0,
+        take: 20,
+      });
       expect(result).toEqual(paginated);
     });
 
     it('should forward the search query to the service', async () => {
-      mockContractsService.findAll.mockResolvedValue({ items: [], total: 0, skip: 0, take: 20 });
+      mockContractsService.findAll.mockResolvedValue({
+        items: [],
+        total: 0,
+        skip: 0,
+        take: 20,
+      });
 
       await controller.findAll({ skip: 0, take: 20, search: 'centre' });
 
@@ -96,7 +107,10 @@ describe('ContractsController', () => {
         paymentMethod: PaymentMethod.CASH,
       };
       const user = { id: 7, email: 'admin@test.com', role: Role.ADMIN };
-      mockContractsService.terminate.mockResolvedValue({ id: 1, status: 'TERMINATED' });
+      mockContractsService.terminate.mockResolvedValue({
+        id: 1,
+        status: 'TERMINATED',
+      });
 
       const result = await controller.terminate(1, dto, user);
 
@@ -112,7 +126,10 @@ describe('ContractsController', () => {
         paymentMethod: PaymentMethod.CASH,
       };
       const user = { id: 7, email: 'admin@test.com', role: Role.ADMIN };
-      mockContractsService.cancel.mockResolvedValue({ id: 1, status: 'CANCELED' });
+      mockContractsService.cancel.mockResolvedValue({
+        id: 1,
+        status: 'CANCELED',
+      });
 
       const result = await controller.cancel(1, dto, user);
 

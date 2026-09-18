@@ -1,4 +1,11 @@
-import { Controller, Get, Param, ParseIntPipe, Res, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -21,7 +28,7 @@ export class ReceiptsController {
   constructor(private readonly receiptsService: ReceiptsService) {}
 
   @Get('payment/:paymentId')
-  @ApiOperation({ summary: 'Récupérer le reçu d\'un paiement' })
+  @ApiOperation({ summary: "Récupérer le reçu d'un paiement" })
   @ApiParam({ name: 'paymentId', description: 'ID du paiement', type: Number })
   @ApiOkResponse({ description: 'Reçu trouvé', type: ReceiptEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })

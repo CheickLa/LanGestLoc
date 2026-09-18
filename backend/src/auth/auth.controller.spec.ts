@@ -24,7 +24,11 @@ describe('AuthController', () => {
 
   describe('POST /auth/register', () => {
     it('should call authService.register and return token', async () => {
-      const dto = { name: 'John', email: 'john@test.com', password: 'Password123' };
+      const dto = {
+        name: 'John',
+        email: 'john@test.com',
+        password: 'Password123',
+      };
       mockAuthService.register.mockResolvedValue({ accessToken: 'token' });
 
       const result = await controller.register(dto);
@@ -40,7 +44,10 @@ describe('AuthController', () => {
       const req = { user };
       mockAuthService.login.mockResolvedValue({ accessToken: 'token' });
 
-      const result = await controller.login(req, { email: 'john@test.com', password: 'Password123' });
+      const result = await controller.login(req, {
+        email: 'john@test.com',
+        password: 'Password123',
+      });
 
       expect(mockAuthService.login).toHaveBeenCalledWith(user);
       expect(result).toEqual({ accessToken: 'token' });
@@ -50,7 +57,13 @@ describe('AuthController', () => {
   describe('GET /auth/me', () => {
     it('should call authService.getProfile with user id', async () => {
       const user = { id: 1, email: 'john@test.com', role: Role.USER };
-      const profile = { id: 1, name: 'John', email: 'john@test.com', role: Role.USER, createdAt: new Date() };
+      const profile = {
+        id: 1,
+        name: 'John',
+        email: 'john@test.com',
+        role: Role.USER,
+        createdAt: new Date(),
+      };
       mockAuthService.getProfile.mockResolvedValue(profile);
 
       const result = await controller.getProfile(user);

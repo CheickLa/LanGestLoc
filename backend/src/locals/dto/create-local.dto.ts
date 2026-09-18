@@ -2,10 +2,10 @@ import { IsNotEmpty, IsString, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateLocalDto {
-  @ApiProperty({ 
+  @ApiProperty({
     example: 'LOCAL-001',
     pattern: '^LOCAL-\\d{3}$',
-    description: 'Format: LOCAL-XXX (3 chiffres)'
+    description: 'Format: LOCAL-XXX (3 chiffres)',
   })
   @IsString()
   @IsNotEmpty()

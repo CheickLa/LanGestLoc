@@ -1,15 +1,18 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@generated/prisma/client";
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@generated/prisma/client';
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+export class PrismaService
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
   constructor(configService: ConfigService) {
-    const connectionString = configService.get<string>("DATABASE_URL");
+    const connectionString = configService.get<string>('DATABASE_URL');
 
     if (!connectionString) {
-      throw new Error("DATABASE_URL is not defined in environment variables");
+      throw new Error('DATABASE_URL is not defined in environment variables');
     }
 
     const adapter = new PrismaPg({ connectionString });

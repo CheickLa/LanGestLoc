@@ -12,7 +12,9 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional({ example: 'john@example.com' })
   @IsOptional()
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsEmail({}, { message: "L'email doit être valide" })
   email?: string;
 }

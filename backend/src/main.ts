@@ -20,7 +20,9 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
 
-  SwaggerModule.setup('api', app, () => SwaggerModule.createDocument(app, config));
+  SwaggerModule.setup('api', app, () =>
+    SwaggerModule.createDocument(app, config),
+  );
 
   await app.listen(process.env.PORT ?? 3000);
 }

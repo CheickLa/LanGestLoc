@@ -24,7 +24,8 @@ export class ContractDocumentsService {
   ) {
     this.bailleur = this.config.getOrThrow<string>('BAILLEUR_NAME');
     this.lieu = this.config.getOrThrow<string>('BAILLEUR_LIEU');
-    this.representant = this.config.get<string>('BAILLEUR_REP')?.trim() || undefined;
+    this.representant =
+      this.config.get<string>('BAILLEUR_REP')?.trim() || undefined;
   }
 
   /**
@@ -32,7 +33,9 @@ export class ContractDocumentsService {
    * si un document existe déjà, il est renvoyé tel quel (jamais régénéré).
    */
   async generate(contractId: number): Promise<ContractDocument> {
-    const existing = await this.prisma.contractDocument.findUnique({ where: { contractId } });
+    const existing = await this.prisma.contractDocument.findUnique({
+      where: { contractId },
+    });
     if (existing) return existing;
 
     const contract = await this.prisma.contract.findUnique({
@@ -44,11 +47,14 @@ export class ContractDocumentsService {
         deposit: true,
       },
     });
-    if (!contract) throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+    if (!contract)
+      throw new NotFoundException(`Contrat #${contractId} non trouvé`);
 
     const initialRent = contract.rents[0];
     if (!initialRent || !contract.deposit) {
-      throw new NotFoundException(`Contrat #${contractId} incomplet (loyer ou caution manquant)`);
+      throw new NotFoundException(
+        `Contrat #${contractId} incomplet (loyer ou caution manquant)`,
+      );
     }
 
     const data: BailData = {
@@ -69,7 +75,13 @@ export class ContractDocumentsService {
       const seq = last ? parseInt(last.documentNo.split('-')[2], 10) + 1 : 1;
       const documentNo = `BAIL-${year}-${String(seq).padStart(5, '0')}`;
 
-      const pdfBuffer = await buildBailPdf(data, documentNo, this.bailleur, this.lieu, this.representant);
+      const pdfBuffer = await buildBailPdf(
+        data,
+        documentNo,
+        this.bailleur,
+        this.lieu,
+        this.representant,
+      );
 
       const s3Key = `contracts/${contractId}/${documentNo}.pdf`;
       await this.s3.upload(s3Key, pdfBuffer, 'application/pdf');
@@ -82,8 +94,13 @@ export class ContractDocumentsService {
     try {
       return await buildAndPersist();
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        const raced = await this.prisma.contractDocument.findUnique({ where: { contractId } });
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        const raced = await this.prisma.contractDocument.findUnique({
+          where: { contractId },
+        });
         if (raced) return raced;
 
         return await buildAndPersist();
@@ -101,19 +118,29 @@ export class ContractDocumentsService {
     try {
       await this.generate(contractId);
     } catch (error) {
-      this.logger.error(`Échec génération bail pour contrat #${contractId}`, error);
+      this.logger.error(
+        `Échec génération bail pour contrat #${contractId}`,
+        error,
+      );
     }
   }
 
-  async download(contractId: number): Promise<{ buffer: Buffer; documentNo: string }> {
+  async download(
+    contractId: number,
+  ): Promise<{ buffer: Buffer; documentNo: string }> {
     const doc = await this.generate(contractId);
 
     try {
       const buffer = await this.s3.getObject(doc.s3Key);
       return { buffer, documentNo: doc.documentNo };
     } catch (error) {
-      this.logger.error(`Impossible de récupérer le fichier S3 : ${doc.s3Key}`, error);
-      throw new InternalServerErrorException('Le contrat de bail est temporairement indisponible');
+      this.logger.error(
+        `Impossible de récupérer le fichier S3 : ${doc.s3Key}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Le contrat de bail est temporairement indisponible',
+      );
     }
   }
 }

@@ -8,9 +8,14 @@ export class CreateRentDueDto {
   @IsNotEmpty({ message: 'Le contrat est requis' })
   contractId: number;
 
-  @ApiProperty({ example: '2026-01', description: 'Mois de l\'échéance (format YYYY-MM)' })
+  @ApiProperty({
+    example: '2026-01',
+    description: "Mois de l'échéance (format YYYY-MM)",
+  })
   @IsString()
   @IsNotEmpty({ message: 'Le mois est requis' })
-  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, { message: 'Format attendu : YYYY-MM (ex: 2026-01)' })
+  @Matches(/^\d{4}-(0[1-9]|1[0-2])$/, {
+    message: 'Format attendu : YYYY-MM (ex: 2026-01)',
+  })
   month: string;
 }

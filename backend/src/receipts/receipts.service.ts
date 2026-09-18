@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
 import { S3Service } from '@/s3/s3.service';
@@ -20,7 +25,9 @@ export class ReceiptsService {
   }
 
   async generate(paymentId: number) {
-    const existing = await this.prisma.receipt.findUnique({ where: { paymentId } });
+    const existing = await this.prisma.receipt.findUnique({
+      where: { paymentId },
+    });
     if (existing) return existing;
 
     const payment = await this.prisma.payment.findUnique({
@@ -37,7 +44,8 @@ export class ReceiptsService {
         },
       },
     });
-    if (!payment) throw new NotFoundException(`Paiement #${paymentId} non trouvé`);
+    if (!payment)
+      throw new NotFoundException(`Paiement #${paymentId} non trouvé`);
 
     const receipt = await this.prisma.$transaction(async (tx) => {
       const year = new Date().getUTCFullYear();
@@ -50,7 +58,12 @@ export class ReceiptsService {
         : 1;
       const receiptNo = `REC-${year}-${String(seq).padStart(5, '0')}`;
 
-      const pdfBuffer = await buildReceiptPdf(payment, receiptNo, this.bailleur, this.lieu);
+      const pdfBuffer = await buildReceiptPdf(
+        payment,
+        receiptNo,
+        this.bailleur,
+        this.lieu,
+      );
 
       // Upload PDF sur S3
       const s3Key = `receipts/${year}/${receiptNo}.pdf`;
@@ -72,7 +85,8 @@ export class ReceiptsService {
     const receipt = await this.prisma.receipt.findUnique({
       where: { paymentId },
     });
-    if (!receipt) throw new NotFoundException(`Aucun reçu pour le paiement #${paymentId}`);
+    if (!receipt)
+      throw new NotFoundException(`Aucun reçu pour le paiement #${paymentId}`);
     return receipt;
   }
 
@@ -84,8 +98,13 @@ export class ReceiptsService {
       const buffer = await this.s3.getObject(receipt.s3Key);
       return { buffer, receiptNo: receipt.receiptNo };
     } catch (error) {
-      this.logger.error(`Impossible de récupérer le fichier S3 : ${receipt.s3Key}`, error);
-      throw new InternalServerErrorException('Le fichier PDF du reçu est temporairement indisponible');
+      this.logger.error(
+        `Impossible de récupérer le fichier S3 : ${receipt.s3Key}`,
+        error,
+      );
+      throw new InternalServerErrorException(
+        'Le fichier PDF du reçu est temporairement indisponible',
+      );
     }
   }
 }

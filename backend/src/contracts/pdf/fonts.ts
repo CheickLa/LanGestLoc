@@ -33,7 +33,9 @@ const FALLBACK: FontSet = {
  * présents dans `assets/fonts/`, sinon retourne les polices standard pdfkit
  */
 export function registerFonts(doc: PDFKit.PDFDocument): FontSet {
-  const present = Object.values(FILES).every((f) => fs.existsSync(path.join(FONT_DIR, f)));
+  const present = Object.values(FILES).every((f) =>
+    fs.existsSync(path.join(FONT_DIR, f)),
+  );
   if (!present) return FALLBACK;
 
   const names: FontSet = {

@@ -3,7 +3,11 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class PaginationDto {
-  @ApiPropertyOptional({ description: "Nombre d'éléments à ignorer", default: 0, minimum: 0 })
+  @ApiPropertyOptional({
+    description: "Nombre d'éléments à ignorer",
+    default: 0,
+    minimum: 0,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'skip doit être un entier' })

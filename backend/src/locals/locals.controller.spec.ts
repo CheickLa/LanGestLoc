@@ -82,7 +82,9 @@ describe('LocalsController', () => {
 
       const result = await controller.update(1, { name: 'Updated' });
 
-      expect(mockLocalsService.update).toHaveBeenCalledWith(1, { name: 'Updated' });
+      expect(mockLocalsService.update).toHaveBeenCalledWith(1, {
+        name: 'Updated',
+      });
       expect(result).toEqual(updated);
     });
   });

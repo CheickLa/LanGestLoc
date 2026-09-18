@@ -39,7 +39,8 @@ export class LocalListItemEntity extends LocalEntity {
 
   @ApiProperty({
     example: true,
-    description: 'Au moins un contrat (tout statut) rattaché → suppression bloquée',
+    description:
+      'Au moins un contrat (tout statut) rattaché → suppression bloquée',
   })
   hasContracts: boolean;
 }

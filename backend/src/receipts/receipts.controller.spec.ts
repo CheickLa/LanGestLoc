@@ -36,7 +36,10 @@ describe('ReceiptsController', () => {
   describe('GET /receipts/:id/download', () => {
     it('should stream PDF with correct headers', async () => {
       const buffer = Buffer.from('fake-pdf');
-      mockReceiptsService.download.mockResolvedValue({ buffer, receiptNo: 'REC-2026-00001' });
+      mockReceiptsService.download.mockResolvedValue({
+        buffer,
+        receiptNo: 'REC-2026-00001',
+      });
 
       const mockRes = {
         set: jest.fn(),

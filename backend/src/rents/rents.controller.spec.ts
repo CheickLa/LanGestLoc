@@ -23,7 +23,11 @@ describe('RentsController', () => {
 
   describe('POST /rents', () => {
     it('should call service.create and return result', async () => {
-      const dto = { contractId: 1, amount: 600000, effectiveFrom: '2026-04-01' };
+      const dto = {
+        contractId: 1,
+        amount: 600000,
+        effectiveFrom: '2026-04-01',
+      };
       mockRentsService.create.mockResolvedValue({ id: 2, ...dto });
 
       const result = await controller.create(dto);

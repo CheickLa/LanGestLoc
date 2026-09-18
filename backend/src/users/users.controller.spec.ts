@@ -27,7 +27,12 @@ describe('UsersController', () => {
 
   describe('PATCH /users/me', () => {
     it('should call service.updateMe with current user id and dto', async () => {
-      const updated = { id: 1, name: 'Updated', email: 'u@test.com', role: Role.USER };
+      const updated = {
+        id: 1,
+        name: 'Updated',
+        email: 'u@test.com',
+        role: Role.USER,
+      };
       mockUsersService.updateMe.mockResolvedValue(updated);
 
       const result = await controller.updateMe(
@@ -76,14 +81,22 @@ describe('UsersController', () => {
 
       const result = await controller.findAll({ skip: 0, take: 20 });
 
-      expect(mockUsersService.findAll).toHaveBeenCalledWith({ skip: 0, take: 20 });
+      expect(mockUsersService.findAll).toHaveBeenCalledWith({
+        skip: 0,
+        take: 20,
+      });
       expect(result).toEqual(paginated);
     });
   });
 
   describe('GET /users/:id', () => {
     it('should call service.findOne with id', async () => {
-      const user = { id: 2, name: 'User', email: 'u@test.com', role: Role.USER };
+      const user = {
+        id: 2,
+        name: 'User',
+        email: 'u@test.com',
+        role: Role.USER,
+      };
       mockUsersService.findOne.mockResolvedValue(user);
 
       const result = await controller.findOne(2);
@@ -95,7 +108,12 @@ describe('UsersController', () => {
 
   describe('PATCH /users/:id', () => {
     it('should call service.adminUpdate with id and dto', async () => {
-      const updated = { id: 2, name: 'Updated', email: 'u@test.com', role: Role.ADMIN };
+      const updated = {
+        id: 2,
+        name: 'Updated',
+        email: 'u@test.com',
+        role: Role.ADMIN,
+      };
       mockUsersService.adminUpdate.mockResolvedValue(updated);
 
       const result = await controller.adminUpdate(2, {
@@ -115,7 +133,10 @@ describe('UsersController', () => {
     it('should call service.remove with target id and current user id', async () => {
       mockUsersService.remove.mockResolvedValue(undefined);
 
-      await controller.remove({ id: 1, email: 'a@test.com', role: Role.ADMIN }, 2);
+      await controller.remove(
+        { id: 1, email: 'a@test.com', role: Role.ADMIN },
+        2,
+      );
 
       expect(mockUsersService.remove).toHaveBeenCalledWith(2, 1);
     });
