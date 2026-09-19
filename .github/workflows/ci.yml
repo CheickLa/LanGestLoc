@@ -10,6 +10,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Le jeton de ces jobs ne sert qu'à lire le code : ils ne publient rien.
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Backend (lint, build, tests)
@@ -19,6 +23,9 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Aucune étape n'utilise git après le checkout : pas de jeton laissé dans .git/config
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
@@ -49,6 +56,9 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Aucune étape n'utilise git après le checkout : pas de jeton laissé dans .git/config
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
