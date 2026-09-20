@@ -257,6 +257,15 @@ async function main() {
     `deposit=${JSON.stringify(contract1Get.json?.deposit)}`,
   );
 
+  // Le bail PDF est généré à la création du contrat et stocké sur S3.
+  const bail = await req('GET', `/contracts/${c1}/document/download`, { token: adminToken });
+  expect('GET /contracts/:id/document/download → 200', bail, 200);
+  check(
+    'le bail téléchargé est un PDF',
+    (bail.headers.get('content-type') || '').includes('pdf'),
+    `ct=${bail.headers.get('content-type')}`,
+  );
+
   // ===== LOYERS (SCD) =====
   section('Loyers (SCD)');
   const rentsC1 = await req('GET', `/rents/contract/${c1}`, { token: adminToken });
@@ -442,12 +451,49 @@ async function main() {
     },
   });
   check('contrat à résilier créé', ct.status === 201, `status=${ct.status}`);
-  const terminate = await req('PATCH', `/contracts/${ct.json?.id}/terminate`, {
+  const ctId = ct.json?.id;
+
+  // Règle 9 : une échéance impayée dont le mois précède la date de fin
+  // interdit la résiliation. Les loyers se règlent AVANT de résilier.
+  const dueT = await req('POST', '/rent-dues/generate', {
+    token: adminToken,
+    body: { contractId: ctId, month: currentMonth },
+  });
+  expect('échéance générée sur le contrat à résilier → 201', dueT, 201);
+
+  const earlyTerminate = await req('PATCH', `/contracts/${ctId}/terminate`, {
     token: adminToken,
     body: { endDate: today, paymentDate: today, paymentMethod: 'CASH' },
   });
-  expect('PATCH /contracts/:id/terminate (aucune échéance due) → 200', terminate, 200);
+  expect('PATCH /terminate avec une échéance impayée → 409', earlyTerminate, 409);
+
+  const payT = await req('POST', '/payments', {
+    token: adminToken,
+    body: { rentDueIds: [dueT.json?.id], paymentDate: today, paymentMethod: 'CASH' },
+  });
+  expect("solde de l'échéance avant résiliation → 201", payT, 201);
+
+  const terminate = await req('PATCH', `/contracts/${ctId}/terminate`, {
+    token: adminToken,
+    body: { endDate: today, paymentDate: today, paymentMethod: 'CASH' },
+  });
+  expect('PATCH /contracts/:id/terminate (loyers soldés) → 200', terminate, 200);
   check('contrat passé en TERMINATED', terminate.json?.status === 'TERMINATED');
+
+  // la caution est une garantie pure, restituée à la fin du contrat.
+  const ctAfter = await req('GET', `/contracts/${ctId}`, { token: adminToken });
+  check(
+    'la caution est passée en REFUNDED',
+    ctAfter.json?.deposit?.status === 'REFUNDED',
+    `deposit=${JSON.stringify(ctAfter.json?.deposit)}`,
+  );
+
+  const payAfterT = await req('GET', `/payments/contract/${ctId}`, { token: adminToken });
+  check(
+    'un paiement DEPOSIT_REFUND a été créé',
+    Array.isArray(payAfterT.json) && payAfterT.json.some((p) => p.type === 'DEPOSIT_REFUND'),
+    `types=${JSON.stringify((payAfterT.json || []).map((p) => p.type))}`,
+  );
 
   // ===== ANNULATION (cancel) =====
   section('Annulation de contrat');
@@ -470,6 +516,48 @@ async function main() {
   });
   expect('PATCH /contracts/:id/cancel (aucun paiement RENT) → 200', cancel, 200);
   check('contrat passé en CANCELED', cancel.json?.status === 'CANCELED');
+
+  // ===== BASCULE EN LATE =====
+  // une échéance impayée dont l'exigibilité est passée doit basculer
+  // en LATE. Jusqu'ici le cron était appelé sans qu'on vérifie son effet.
+  section('Bascule automatique en LATE');
+  const localL = await createLocal(adminToken, 'E2E Local late');
+  const startL = firstOfOffset(-2);
+  const cl = await req('POST', '/contracts', {
+    token: adminToken,
+    body: {
+      localId: localL.id,
+      tenantId: tenant1.json.id,
+      startDate: startL,
+      rentAmount: 250000,
+      depositPaymentMethod: 'CASH',
+      depositPaymentDate: startL,
+    },
+  });
+  check('contrat démarré il y a 2 mois créé', cl.status === 201, `status=${cl.status}`);
+  const clId = cl.json?.id;
+
+  const dueL = await req('POST', '/rent-dues/generate', {
+    token: adminToken,
+    body: { contractId: clId, month: monthStr(-2) },
+  });
+  expect('échéance de M-2 générée → 201', dueL, 201);
+  check(
+    "l'échéance naît PENDING",
+    dueL.json?.status === 'PENDING',
+    `status=${dueL.json?.status}`,
+  );
+
+  const markLate = await req('POST', '/rent-dues/cron/mark-late', { token: adminToken });
+  expect('POST /rent-dues/cron/mark-late → 2xx', markLate, [200, 201]);
+
+  const duesL = await req('GET', `/rent-dues/contract/${clId}`, { token: adminToken });
+  const dueLAfter = (duesL.json || []).find((d) => d.id === dueL.json?.id);
+  check(
+    "l'échéance impayée de M-2 est passée en LATE",
+    dueLAfter?.status === 'LATE',
+    `status=${dueLAfter?.status}`,
+  );
 
   // ===== UTILISATEURS + RÔLES =====
   section('Utilisateurs & contrôle des rôles');
