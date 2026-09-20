@@ -48,6 +48,123 @@ jobs:
       - name: Tests unitaires
         run: npm test
 
+  e2e:
+    name: API e2e (Postgres + MinIO)
+    runs-on: ubuntu-latest
+    needs: backend
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: langestloc_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d langestloc_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    # Valeurs jetables : la base et le stockage vivent le temps du job.
+    # Elles sont ici, et pas dans des secrets, pour deux raisons :
+    #  - un secret est masque dans les logs, un job rouge afficherait
+    #    au lieu de l'URL, et serait indebogable ;
+    #  - DATABASE_URL doit rester coherente avec le service `postgres` ci-dessus.
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/langestloc_ci
+      PORT: 3999
+      JWT_SECRET: ci-jwt-secret
+      JWT_EXPIRES_IN: 1h
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: ciaccesskey
+      S3_SECRET_KEY: cisecretkey123
+      S3_REGION: eu-west-3
+      S3_BUCKET: langestloc-ci
+      BAILLEUR_NAME: CI Bailleur
+      BAILLEUR_LIEU: Conakry
+      BAILLEUR_REP: CI Representant
+      ADMIN_EMAIL: admin@ci.local
+      ADMIN_PASSWORD: CiAdmin123
+      ADMIN_NAME: CI Admin
+      USER_EMAIL: user@ci.local
+      USER_PASSWORD: CiUser123
+      USER_NAME: CI User
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Générer le client Prisma
+        run: npx prisma generate
+
+      - name: Démarrer MinIO
+        run: |
+          docker run -d --name minio \
+            -e MINIO_ROOT_USER="$S3_ACCESS_KEY" \
+            -e MINIO_ROOT_PASSWORD="$S3_SECRET_KEY" \
+            -p 9000:9000 \
+            minio/minio:latest server /data
+
+      - name: Attendre MinIO
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -sf -o /dev/null http://localhost:9000/minio/health/live; then
+              echo "MinIO prêt"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MinIO n'a pas démarré"
+          docker logs minio
+          exit 1
+
+      - name: Appliquer les migrations
+        run: npx prisma migrate deploy
+
+      - name: Charger le jeu de données
+        run: npx prisma db seed
+
+      - name: Build
+        run: npm run build
+
+      - name: Démarrer l'API
+        run: |
+          npm run start:prod > /tmp/api.log 2>&1 &
+          for _ in $(seq 1 45); do
+            if curl -sf -o /dev/null "http://localhost:$PORT/api-json"; then
+              echo "API prête"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "L'API n'a pas démarré"
+          cat /tmp/api.log
+          exit 1
+
+      - name: Tests bout-en-bout
+        run: npm run test:smoke
+
+      - name: Journal de l'API (en cas d'échec)
+        if: failure()
+        run: cat /tmp/api.log
+
   frontend:
     name: Frontend (lint, build)
     runs-on: ubuntu-latest
