@@ -204,6 +204,7 @@ async function main() {
     activity: 'Test',
     phone: `+22466${String(TS).slice(-7)}`,
     dateOfBirth: '1990-05-15',
+    birthPlace: 'Conakry',
     idNumber: `E2E-${TS}`,
   };
   const tenant1 = await req('POST', '/tenants', { token: adminToken, body: tenantBody });
