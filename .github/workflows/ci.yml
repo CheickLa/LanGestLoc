@@ -120,7 +120,7 @@ jobs:
             -e MINIO_ROOT_USER="$S3_ACCESS_KEY" \
             -e MINIO_ROOT_PASSWORD="$S3_SECRET_KEY" \
             -p 9000:9000 \
-            minio/minio:latest server /data
+            quay.io/minio/minio:latest server /data
 
       - name: Attendre MinIO
         run: |
@@ -163,7 +163,10 @@ jobs:
 
       - name: Journal de l'API (en cas d'échec)
         if: failure()
-        run: cat /tmp/api.log
+        # `cat` sur un fichier absent echoue : sans ce garde-fou, une panne
+        # survenue AVANT le demarrage de l'API produit un second echec trompeur.
+        run: |
+          cat /tmp/api.log || echo "aucun journal, l'API n'a jamais démarré"
 
   frontend:
     name: Frontend (lint, build)
