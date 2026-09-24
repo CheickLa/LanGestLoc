@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from '@/auth/auth.controller';
 import { AuthService } from '@/auth/auth.service';
 import { LocalStrategy, JwtStrategy } from '@/auth/strategies';
+import { IdentityThrottlerGuard } from '@/auth/guards/identity-throttler.guard';
 
 @Module({
   imports: [
@@ -25,7 +27,13 @@ import { LocalStrategy, JwtStrategy } from '@/auth/strategies';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, LocalStrategy, JwtStrategy],
+  providers: [
+    AuthService,
+    LocalStrategy,
+    JwtStrategy,
+    // Garde globale : déclarée ici car elle a besoin du JwtService de ce module
+    { provide: APP_GUARD, useClass: IdentityThrottlerGuard },
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}
