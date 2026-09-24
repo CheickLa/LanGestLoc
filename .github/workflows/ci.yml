@@ -131,7 +131,7 @@ jobs:
       - name: Attendre le stockage S3
         run: |
           for _ in $(seq 1 30); do
-            if curl -sf -o /dev/null http://localhost:9000/health; then
+            if curl -sf -o /dev/null http://localhost:9000/health/ready; then
               echo "Stockage S3 prêt"
               exit 0
             fi
