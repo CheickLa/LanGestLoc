@@ -4,13 +4,15 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 # Quand plusieurs commits sont poussés d'affilée, seul le dernier run est conservé.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Le jeton de ces jobs ne sert qu'à lire le code : ils ne publient rien.
+# Par défaut, le jeton ne sert qu'à lire le code. Seul le job « image »
+# reçoit en plus le droit de publier sur GHCR.
 permissions:
   contents: read
 
@@ -194,3 +196,96 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  image:
+    name: Image Docker (build, vérification, push GHCR)
+    runs-on: ubuntu-latest
+    needs: [backend, e2e]
+    # Publie seulement depuis main (ou à la demande) : une PR ne pousse jamais d'image.
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: langestloc_image
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d langestloc_image"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # Tag unique et immuable = SHA du commit (pas de latest : on sait toujours ce qui tourne)
+      IMAGE: ghcr.io/cheickla/langestloc-api:${{ github.sha }}
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/langestloc_image
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construire l'image (linux/amd64)
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.IMAGE }}
+          # Relie le paquet GHCR à ce repo (visibilité et droits hérités)
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Appliquer les migrations avec l'image
+        run: docker run --rm --network host -e DATABASE_URL "$IMAGE" npx prisma migrate deploy
+
+      - name: Démarrer l'API (mode production)
+        # Valeurs factices : S3 injoignable ne bloque pas le démarrage (simple avertissement).
+        run: |
+          docker run -d --name api --network host \
+            -e DATABASE_URL -e PORT=3000 \
+            -e JWT_SECRET=ci-image-secret \
+            -e S3_ENDPOINT=http://127.0.0.1:9 -e S3_REGION=eu-west-3 \
+            -e S3_BUCKET=langestloc-image -e S3_ACCESS_KEY=ci -e S3_SECRET_KEY=ci \
+            -e BAILLEUR_NAME="CI Bailleur" -e BAILLEUR_LIEU=Conakry \
+            "$IMAGE"
+
+      - name: Vérifier /health et l'absence de Swagger
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -sf -o /dev/null http://localhost:3000/health; then
+              break
+            fi
+            sleep 2
+          done
+          curl -sf http://localhost:3000/health | grep -q '"status":"ok"'
+          status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api-json)
+          if [ "$status" != "404" ]; then
+            echo "Swagger exposé en production (HTTP $status)"
+            exit 1
+          fi
+
+      - name: Journal de l'API (en cas d'échec)
+        if: failure()
+        run: docker logs api || echo "aucun conteneur api"
+
+      - name: Publier l'image vérifiée sur GHCR
+        # Pousse exactement l'image testée ci-dessus, sans la reconstruire.
+        run: docker push "$IMAGE"
