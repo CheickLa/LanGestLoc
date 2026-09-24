@@ -347,7 +347,7 @@ async function main() {
   const payGet = await req('GET', `/payments/${payId}`, { token: adminToken });
   expect('GET /payments/:id → 200', payGet, 200);
 
-  // ===== REÇUS (S3/MinIO) =====
+  // ===== REÇUS (S3) =====
   section('Reçus (PDF / S3)');
   const receipt = await req('GET', `/receipts/payment/${payId}`, { token: adminToken });
   expect('GET /receipts/payment/:paymentId → 200', receipt, 200);
