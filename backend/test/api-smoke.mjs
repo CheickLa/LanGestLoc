@@ -145,6 +145,10 @@ async function main() {
 
   // ===== AUTH =====
   section('Auth');
+  const health = await req('GET', '/health');
+  expect('GET /health → 200', health, 200);
+  check('GET /health renvoie status ok', health.json?.status === 'ok');
+
   const ping = await req('GET', '/auth/me');
   expect('GET /auth/me sans token → 401', ping, 401);
 
@@ -157,6 +161,12 @@ async function main() {
   }
   const adminToken = login.json?.accessToken;
   check('login renvoie un accessToken', !!adminToken);
+
+  // Sur téléphone, le clavier met souvent une majuscule en tête du champ e-mail
+  const upperLogin = await req('POST', '/auth/login', {
+    body: { email: ADMIN_EMAIL.toUpperCase(), password: ADMIN_PASSWORD },
+  });
+  expect('POST /auth/login e-mail en majuscules → 200', upperLogin, 200);
 
   const badLogin = await req('POST', '/auth/login', {
     body: { email: ADMIN_EMAIL, password: 'wrong-password-xyz' },
@@ -625,6 +635,36 @@ async function main() {
     const del = await req('DELETE', `/users/${createdUser.id}`, { token: adminToken });
     expect('DELETE /users/:id (ADMIN) → 204', del, 204);
   }
+
+  // ===== RATE-LIMITING =====
+  // Le login est limité à 5 tentatives/minute PAR E-MAIL, pas par IP : en prod,
+  // toutes les requêtes arrivent du BFF Vercel via Caddy, un compteur par IP
+  // bloquerait tout le monde en même temps. Ici aussi tout vient de la même IP.
+  section('Rate-limiting');
+  const throttledEmail = `ratelimit-${TS}@e2e.local`;
+  const attempts = [];
+  for (let i = 0; i < 6; i++) {
+    attempts.push(
+      await req('POST', '/auth/login', {
+        body: { email: throttledEmail, password: 'wrong-password-xyz' },
+      }),
+    );
+  }
+  check(
+    '5 premières tentatives sur un même e-mail → 401',
+    attempts.slice(0, 5).every((r) => r.status === 401),
+    attempts.map((r) => r.status).join(','),
+  );
+  expect('6e tentative sur le même e-mail → 429', attempts[5], 429);
+
+  const adminAfterThrottle = await req('POST', '/auth/login', {
+    body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD },
+  });
+  expect(
+    'login admin juste après → 200 (compteur par e-mail, pas par IP)',
+    adminAfterThrottle,
+    200,
+  );
 
   return finish();
 }
