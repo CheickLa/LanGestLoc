@@ -8,12 +8,11 @@ import {
 import * as bcrypt from 'bcrypt';
 import { Prisma, Role } from '@generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
+import { hashPassword } from '@/common/password';
 import { PaginationDto } from '@/common/dto/pagination.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
-
-const SALT_ROUNDS = 10;
 
 const userSafeSelect = {
   id: true,
@@ -82,7 +81,7 @@ export class UsersService {
       throw new UnauthorizedException('Mot de passe actuel incorrect');
     }
 
-    const hashedPassword = await bcrypt.hash(dto.newPassword, SALT_ROUNDS);
+    const hashedPassword = await hashPassword(dto.newPassword);
 
     await this.prisma.user.update({
       where: { id: userId },
