@@ -9,7 +9,9 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     super({ usernameField: 'email' });
   }
 
+  // Normalisé comme LoginDto/RegisterDto : cette stratégie s'exécute avant le
+  // ValidationPipe, et les e-mails sont stockés en minuscules.
   async validate(email: string, password: string) {
-    return this.authService.validateUser(email, password);
+    return this.authService.validateUser(email.trim().toLowerCase(), password);
   }
 }
