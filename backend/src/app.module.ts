@@ -12,6 +12,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { S3Module } from './s3/s3.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { UsersModule } from './users/users.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { UsersModule } from './users/users.module';
     PaymentsModule,
     ReceiptsModule,
     UsersModule,
+    HealthModule,
   ],
   controllers: [],
 })
