@@ -1,0 +1,51 @@
+# Stack de production LanGestLoc (API + Postgres), derrière le Caddy partagé
+# du serveur (repo CheickLa/vps). Procédure : deploy/README.md
+# Aucun port publié : seul Caddy est joignable depuis Internet
+name: langestloc
+
+services:
+  api:
+    image: ghcr.io/cheickla/langestloc-api:${API_IMAGE_TAG:?API_IMAGE_TAG manquant dans .env (SHA complet du commit publié par la CI)}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Un proxy de confiance devant l'API : Caddy
+      TRUST_PROXY_HOPS: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      langestloc: {}
+      proxy:
+        # Nom unique sur le réseau partagé : d'autres projets auront aussi un service « api »
+        aliases:
+          - langestloc-api
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - langestloc
+
+networks:
+  # Réseau privé du projet : ni entrée ni sortie Internet pour la base
+  # L'API sort vers S3 par le réseau « proxy »
+  langestloc:
+    internal: true
+  proxy:
+    external: true
+
+volumes:
+  pgdata:
