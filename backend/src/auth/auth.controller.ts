@@ -22,7 +22,12 @@ import { AuthService } from '@/auth/auth.service';
 import { RegisterDto, LoginDto } from '@/auth/dto';
 import { AuthTokenEntity } from '@/auth/entities/auth-token.entity';
 import { UserEntity } from '@/users/entities/user.entity';
-import { LocalAuthGuard, JwtAuthGuard, RolesGuard } from '@/auth/guards';
+import {
+  LocalAuthGuard,
+  JwtAuthGuard,
+  RolesGuard,
+  trackLoginByEmail,
+} from '@/auth/guards';
 import { CurrentUser, Roles } from '@/auth/decorators';
 import {
   AuthenticatedRequest,
@@ -54,7 +59,9 @@ export class AuthController {
   }
 
   @Post('login')
-  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @Throttle({
+    default: { ttl: 60_000, limit: 5, getTracker: trackLoginByEmail },
+  })
   @UseGuards(LocalAuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Se connecter' })
