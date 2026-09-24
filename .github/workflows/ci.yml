@@ -116,25 +116,29 @@ jobs:
       - name: Générer le client Prisma
         run: npx prisma generate
 
-      - name: Démarrer MinIO
+      # RustFS remplace MinIO, dont les images ont été retirées de quay.io et
+      # de Docker Hub. Version figée : une image `latest` peut changer ou
+      # disparaître sans prévenir. (Le nom du job garde « MinIO » : il est
+      # référencé tel quel par le ruleset de la branche main.)
+      - name: Démarrer le stockage S3 (RustFS)
         run: |
-          docker run -d --name minio \
-            -e MINIO_ROOT_USER="$S3_ACCESS_KEY" \
-            -e MINIO_ROOT_PASSWORD="$S3_SECRET_KEY" \
+          docker run -d --name s3 \
+            -e RUSTFS_ACCESS_KEY="$S3_ACCESS_KEY" \
+            -e RUSTFS_SECRET_KEY="$S3_SECRET_KEY" \
             -p 9000:9000 \
-            quay.io/minio/minio:latest server /data
+            rustfs/rustfs:1.0.0
 
-      - name: Attendre MinIO
+      - name: Attendre le stockage S3
         run: |
           for _ in $(seq 1 30); do
-            if curl -sf -o /dev/null http://localhost:9000/minio/health/live; then
-              echo "MinIO prêt"
+            if curl -sf -o /dev/null http://localhost:9000/health; then
+              echo "Stockage S3 prêt"
               exit 0
             fi
             sleep 2
           done
-          echo "MinIO n'a pas démarré"
-          docker logs minio
+          echo "Le stockage S3 n'a pas démarré"
+          docker logs s3
           exit 1
 
       - name: Appliquer les migrations
