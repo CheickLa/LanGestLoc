@@ -287,6 +287,11 @@ jusqu'à la fin du job « Déploiement API (VPS) ».
 
 #### 7.8 Serveur : sauvegarde quotidienne
 
+Le service tourne sous `ubuntu` (`User=` dans `langestloc-backup.service`).
+Si `<user>` est un autre compte, changer cette ligne avant de copier le
+fichier : `backup.env` et le verrou des déploiements n'appartiennent qu'à
+`<user>`.
+
 Depuis le Mac, à la racine du repo :
 
 ```bash
@@ -383,8 +388,12 @@ Autres cas :
 | Quoi | Quand | Où | Durée |
 |---|---|---|---|
 | Sauvegarde de déploiement | avant chaque déploiement | `/opt/langestloc/backups/avant-*.dump` (non chiffrée, sur le serveur) | 10 dernières |
-| Sauvegarde quotidienne | 03:00 UTC | `s3://langestloc-backups-cheickla/daily/langestloc-<date>.dump.age` (chiffrée) | 30 jours |
+| Sauvegarde quotidienne | 03:00 UTC | `s3://langestloc-backups-cheickla/daily/langestloc-<date>.dump.age` (chiffrée) | 30 jours, puis 30 jours en ancienne version |
 | Test de restauration | lundi 05:00 UTC | GitHub Actions, base jetable | supprimée à la fin |
+
+Après 30 jours, S3 masque la sauvegarde mais la garde encore 30 jours comme
+ancienne version (console S3 → *Afficher les versions*) : un fichier écrasé
+reste récupérable.
 
 Healthchecks alerte si une sauvegarde échoue ou manque, ou si le test ne
 tourne plus ; GitHub envoie un e-mail si le test échoue. Pour lancer une
