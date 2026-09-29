@@ -309,8 +309,8 @@ nano backup.env      # clés du writer (7.3), clé publique age (7.2), adresse H
 sudo install -m 644 /tmp/langestloc-backup.service /tmp/langestloc-backup.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now langestloc-backup.timer
-sudo systemctl start langestloc-backup.service      # première sauvegarde tout de suite
-journalctl -u langestloc-backup -n 20 --no-pager    # « Sauvegarde envoyée : … »
+sudo systemctl start langestloc-backup.service         # première sauvegarde tout de suite
+sudo journalctl -u langestloc-backup -n 20 --no-pager  # « Sauvegarde envoyée : … »
 systemctl list-timers langestloc-backup.timer
 rm /tmp/backup.env.example /tmp/langestloc-backup.service /tmp/langestloc-backup.timer
 ```
@@ -398,7 +398,7 @@ reste récupérable.
 Healthchecks alerte si une sauvegarde échoue ou manque, ou si le test ne
 tourne plus ; GitHub envoie un e-mail si le test échoue. Pour lancer une
 sauvegarde à la main : `sudo systemctl start langestloc-backup.service`, puis
-`journalctl -u langestloc-backup -n 20 --no-pager`.
+`sudo journalctl -u langestloc-backup -n 20 --no-pager`.
 
 ## Sauvegarder la base
 
