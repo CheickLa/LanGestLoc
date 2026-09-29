@@ -1,0 +1,33 @@
+name: Répétition du déploiement
+
+on:
+  pull_request:
+    paths:
+      - 'deploy/**'
+      - 'backend/Dockerfile'
+      - 'backend/prisma/**'
+      - '.github/workflows/deploy-rehearsal.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rehearsal:
+    name: Répétition du déploiement
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Installer age
+        run: sudo apt-get update && sudo apt-get install -y age
+
+      - name: Répéter le déploiement
+        run: bash deploy/test/rehearse.sh

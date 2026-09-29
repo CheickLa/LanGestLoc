@@ -1,0 +1,33 @@
+name: Test de restauration
+
+on:
+  schedule:
+    # Lundi 05:00 UTC, après la sauvegarde de 03:00
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    name: Restauration de la dernière sauvegarde
+    runs-on: ubuntu-24.04
+    environment: sauvegardes
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Installer age
+        run: sudo apt-get update && sudo apt-get install -y age
+
+      - name: Restaurer et contrôler
+        env:
+          BACKUP_BUCKET: ${{ vars.BACKUP_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_READER_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_READER_SECRET_ACCESS_KEY }}
+          AGE_SECRET_KEY: ${{ secrets.AGE_SECRET_KEY }}
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_RESTORE_URL }}
+        run: bash deploy/restore-check.sh
