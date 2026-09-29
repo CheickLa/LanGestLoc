@@ -6,13 +6,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Quand plusieurs commits sont poussés d'affilée, seul le dernier run est conservé.
+# Sur main, on ne coupe jamais un run en cours : il peut être en pleine migration.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Par défaut, le jeton ne sert qu'à lire le code. Seul le job « image »
-# reçoit en plus le droit de publier sur GHCR.
+# Lecture seule, sauf pour les jobs qui en demandent plus.
 permissions:
   contents: read
 
@@ -26,7 +25,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # Aucune étape n'utilise git après le checkout : pas de jeton laissé dans .git/config
           persist-credentials: false
 
       - uses: actions/setup-node@v7
@@ -74,11 +72,7 @@ jobs:
           --health-timeout 3s
           --health-retries 10
 
-    # Valeurs jetables : la base et le stockage vivent le temps du job.
-    # Elles sont ici, et pas dans des secrets, pour deux raisons :
-    #  - un secret est masque dans les logs, un job rouge afficherait
-    #    au lieu de l'URL, et serait indebogable ;
-    #  - DATABASE_URL doit rester coherente avec le service `postgres` ci-dessus.
+    # Valeurs jetables, en clair : masquées comme des secrets, un job rouge serait illisible.
     env:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/langestloc_ci
       PORT: 3999
@@ -116,10 +110,8 @@ jobs:
       - name: Générer le client Prisma
         run: npx prisma generate
 
-      # RustFS remplace MinIO, dont les images ont été retirées de quay.io et
-      # de Docker Hub. Version figée : une image `latest` peut changer ou
-      # disparaître sans prévenir. (Le nom du job garde « MinIO » : il est
-      # référencé tel quel par le ruleset de la branche main.)
+      # RustFS remplace MinIO, dont les images ont disparu. Le job garde « MinIO »
+      # dans son nom parce que le ruleset de main le cite tel quel.
       - name: Démarrer le stockage S3 (RustFS)
         run: |
           docker run -d --name s3 \
@@ -169,8 +161,6 @@ jobs:
 
       - name: Journal de l'API (en cas d'échec)
         if: failure()
-        # `cat` sur un fichier absent echoue : sans ce garde-fou, une panne
-        # survenue AVANT le demarrage de l'API produit un second echec trompeur.
         run: |
           cat /tmp/api.log || echo "aucun journal, l'API n'a jamais démarré"
 
@@ -183,7 +173,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # Aucune étape n'utilise git après le checkout : pas de jeton laissé dans .git/config
           persist-credentials: false
 
       - uses: actions/setup-node@v7
@@ -205,7 +194,6 @@ jobs:
     name: Image Docker (build, vérification, push GHCR)
     runs-on: ubuntu-latest
     needs: [backend, e2e]
-    # Publie seulement depuis main (ou à la demande) : une PR ne pousse jamais d'image.
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     timeout-minutes: 20
     permissions:
@@ -228,7 +216,7 @@ jobs:
           --health-retries 10
 
     env:
-      # Tag unique et immuable = SHA du commit (pas de latest : on sait toujours ce qui tourne)
+      # Tag = SHA du commit, jamais latest
       IMAGE: ghcr.io/cheickla/langestloc-api:${{ github.sha }}
       DATABASE_URL: postgresql://ci:ci@localhost:5432/langestloc_image
 
@@ -252,7 +240,7 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: ${{ env.IMAGE }}
-          # Relie le paquet GHCR à ce repo (visibilité et droits hérités)
+          # Relie le paquet GHCR au repo (droits hérités)
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -261,7 +249,7 @@ jobs:
         run: docker run --rm --network host -e DATABASE_URL "$IMAGE" npx prisma migrate deploy
 
       - name: Démarrer l'API (mode production)
-        # Valeurs factices : S3 injoignable ne bloque pas le démarrage (simple avertissement).
+        # Valeurs factices : un S3 injoignable n'empêche pas le démarrage.
         run: |
           docker run -d --name api --network host \
             -e DATABASE_URL -e PORT=3000 \
@@ -291,5 +279,68 @@ jobs:
         run: docker logs api || echo "aucun conteneur api"
 
       - name: Publier l'image vérifiée sur GHCR
-        # Pousse exactement l'image testée ci-dessus, sans la reconstruire.
+        # L'image testée ci-dessus, sans la reconstruire
         run: docker push "$IMAGE"
+
+  deploy:
+    name: Déploiement API (VPS)
+    runs-on: ubuntu-latest
+    needs: [image, frontend]
+    if: github.ref == 'refs/heads/main'
+    environment: vps
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    env:
+      SSH_TARGET: ${{ vars.SSH_USER }}@${{ vars.SSH_HOST }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # ssh/scp du runner plutôt qu'une action tierce : la clé donne tous les droits sur le VPS.
+      - name: Préparer SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host *
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ServerAliveInterval 15
+            ServerAliveCountMax 4
+          EOF
+
+      - name: Envoyer les fichiers de déploiement
+        run: |
+          ssh "$SSH_TARGET" 'mkdir -p /opt/langestloc/incoming'
+          scp deploy/compose.prod.yml deploy/*.sh "$SSH_TARGET:/opt/langestloc/incoming/"
+
+      # Le jeton passe par l'entrée standard pour ne pas apparaître dans ps sur le serveur.
+      - name: Déployer sur le VPS
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # shellcheck disable=SC2029
+          printf '%s\n' "$GHCR_TOKEN" \
+            | ssh "$SSH_TARGET" "bash /opt/langestloc/incoming/deploy.sh '$GITHUB_SHA' '$GITHUB_ACTOR'"
+
+      - name: Vérifier l'API depuis Internet
+        run: |
+          for _ in $(seq 1 10); do
+            if curl -sf -m 10 https://api.langestloc.cheickla.fr/health | grep -q '"status":"ok"'; then
+              echo "API en ligne"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "https://api.langestloc.cheickla.fr/health ne répond pas"
+          exit 1
