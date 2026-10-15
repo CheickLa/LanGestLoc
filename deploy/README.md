@@ -34,7 +34,7 @@ s'est passé :
 | `Retour arrière terminé` | L'ancienne version tourne de nouveau, avec la base restaurée si besoin. Corriger, puis merger à nouveau. |
 | `RETOUR ARRIÈRE ÉCHOUÉ` | Il faut intervenir à la main : voir « Revenir en arrière ». |
 | `Déploiement réussi`, mais « Vérifier l'API depuis Internet » échoue | La nouvelle version reste en place et le front ne part pas. |
-| Aucun journal | La connexion SSH a coupé ou le job a expiré, mais le déploiement est allé au bout. Lire le dernier fichier de `logs/`. |
+| Aucun journal | La connexion SSH a coupé ou le job a expiré. `deploy.sh` continue sur le serveur : son issue est dans le dernier fichier de `logs/`. |
 
 Pour redéployer la même version, relancer seulement le job « Déploiement API
 (VPS) » du dernier run. « Re-run all jobs » reconstruirait l'image sous le même
@@ -97,12 +97,13 @@ version qui démarre mais se comporte mal. Il faut aussi annuler le commit sur
 Le serveur garde l'image en place et la précédente
 (`docker images ghcr.io/cheickla/langestloc-api`). Les journaux de `logs/`
 donnent les versions et le nom de chaque sauvegarde, et `previous/` contient
-l'ancien `compose.prod.yml` s'il a changé.
+les fichiers de déploiement d'avant le dernier déploiement.
 
 S'il n'y a pas eu de migration :
 
 ```bash
 cd /opt/langestloc
+cp -p previous/* .                          # anciens fichiers de déploiement
 nano .env                                   # ancien API_IMAGE_TAG
 docker compose -f compose.prod.yml up -d api
 curl https://api.langestloc.cheickla.fr/health
@@ -116,6 +117,7 @@ transaction : s'il échoue, la base ne bouge pas.
 cd /opt/langestloc
 docker compose -f compose.prod.yml stop api
 bash restore-db.sh backups/avant-AAAAMMJJ-HHMMSS-<sha>.dump
+cp -p previous/* .
 nano .env                                   # ancien API_IMAGE_TAG
 docker compose -f compose.prod.yml up -d api
 curl https://api.langestloc.cheickla.fr/health
@@ -160,8 +162,9 @@ La base restaurée a déjà ses ADMIN, `create-admin` ne sert donc pas.
    un token GitHub classic avec la seule permission `read:packages`, puis
    lancer `docker login ghcr.io -u CheickLa`.
 4. Télécharger la sauvegarde depuis la console S3
-   (`langestloc-backups-cheickla` → `daily/`), puis la déchiffrer sur le Mac,
-   dans son dossier :
+   (`langestloc-backups-cheickla` → `daily/`). Au-delà de 30 jours, elle
+   n'apparaît qu'en activant « Afficher les versions ». La déchiffrer ensuite
+   sur le Mac, dans son dossier :
 
    ```bash
    nano cle.txt      # les trois lignes de la clé age
