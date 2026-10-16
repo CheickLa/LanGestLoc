@@ -7,6 +7,8 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CreateRentDueDto } from './dto/create-rent-due.dto';
 import { PrismaService } from '@/prisma/prisma.service';
+import { firstOfMonth } from '@/common/months';
+import { dueDateOf } from './due-date';
 import { ContractStatus, RentDueStatus } from '@generated/prisma/client';
 
 @Injectable()
@@ -18,14 +20,10 @@ export class RentDueService {
   // Génère une échéance pour un contrat et un mois donnés, en utilisant le loyer actif à ce moment-là
   async generate(dto: CreateRentDueDto) {
     const { contractId, month } = dto;
-    const EcheanceDay = 5; // Jour de l'échéance : 5 du mois suivant
 
     const [year, monthIndex] = month.split('-').map(Number);
     const monthDate = new Date(Date.UTC(year, monthIndex - 1, 1));
     const endOfMonth = new Date(Date.UTC(year, monthIndex, 0, 23, 59, 59, 999));
-
-    // dueDate = 5 du mois suivant
-    const dueDate = new Date(Date.UTC(year, monthIndex, EcheanceDay));
 
     const contract = await this.prisma.contract.findUnique({
       where: { id: contractId },
@@ -66,7 +64,7 @@ export class RentDueService {
         rentId: activeRent.id,
         month: monthDate,
         amount: activeRent.amount,
-        dueDate,
+        dueDate: dueDateOf(monthDate),
       },
     });
   }
@@ -99,7 +97,7 @@ export class RentDueService {
     });
   }
 
-  // Cron : 1er du mois à 01:00 UTC qui génère les échéances pour tous les contrats ACTIFS
+  // Cron : le 1er du mois à minuit, génère l'échéance du mois des contrats ACTIFS déjà commencés
   @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
   async generateForAllActiveContracts() {
     this.logger.log('Cron génération RentDue: démarrage');
@@ -108,7 +106,10 @@ export class RentDueService {
     const month = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 
     const activeContracts = await this.prisma.contract.findMany({
-      where: { status: ContractStatus.ACTIVE },
+      where: {
+        status: ContractStatus.ACTIVE,
+        startDate: { lt: firstOfMonth(now, 1) },
+      },
       select: { id: true },
     });
 

@@ -149,7 +149,15 @@ describe('RentDueService', () => {
   });
 
   describe('generateForAllActiveContracts', () => {
-    it('should generate rent dues for all active contracts', async () => {
+    beforeAll(() => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-10-15T10:00:00Z'));
+    });
+
+    afterAll(() => {
+      jest.useRealTimers();
+    });
+
+    it('ne génère que pour les contrats actifs déjà commencés', async () => {
       mockPrisma.contract.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
       mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
       mockPrisma.rentDue.findUnique.mockResolvedValue(null);
@@ -159,7 +167,10 @@ describe('RentDueService', () => {
       await service.generateForAllActiveContracts();
 
       expect(mockPrisma.contract.findMany).toHaveBeenCalledWith({
-        where: { status: ContractStatus.ACTIVE },
+        where: {
+          status: ContractStatus.ACTIVE,
+          startDate: { lt: new Date('2026-11-01') },
+        },
         select: { id: true },
       });
       expect(mockPrisma.rentDue.create).toHaveBeenCalledTimes(2);
