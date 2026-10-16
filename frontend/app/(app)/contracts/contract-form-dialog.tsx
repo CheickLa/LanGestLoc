@@ -30,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { formatGNF } from "@/lib/format";
+import { firstDayOf, isMonth, lastDayOf } from "@/lib/months";
 
 type LocalListItem = components["schemas"]["LocalListItemEntity"];
 type TenantListItem = components["schemas"]["TenantListItemEntity"];
@@ -38,13 +39,13 @@ type Contract = components["schemas"]["ContractEntity"];
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 // Les règles ci-dessous reflètent celles enforced côté backend (source de vérité) :
-// fin postérieure au début, versement de la caution non daté dans le futur.
+// mois de fin pas avant le mois de début, versement de la caution non daté dans le futur.
 const schema = z
   .object({
     localId: z.string().min(1, "Sélectionne un local."),
     tenantId: z.string().min(1, "Sélectionne un locataire."),
-    startDate: z.string().min(1, "La date de début est requise."),
-    endDate: z.string().optional(),
+    startMonth: z.string().refine(isMonth, "Choisis le mois de début (AAAA-MM)."),
+    endMonth: z.string().optional(),
     rentAmount: z
       .string()
       .min(1, "Le loyer mensuel est requis.")
@@ -52,10 +53,14 @@ const schema = z
     depositPaymentMethod: z.enum(["CASH", "ORANGE_MONEY", "MOBILE_MONEY"]),
     depositPaymentDate: z.string().min(1, "La date de versement est requise."),
   })
-  .refine(
-    (d) => !d.endDate?.trim() || new Date(d.endDate) > new Date(d.startDate),
-    { message: "La date de fin doit être après la date de début.", path: ["endDate"] },
-  )
+  .refine((d) => !d.endMonth || isMonth(d.endMonth), {
+    message: "Choisis un mois de fin valide (AAAA-MM).",
+    path: ["endMonth"],
+  })
+  .refine((d) => !d.endMonth || !isMonth(d.startMonth) || d.endMonth >= d.startMonth, {
+    message: "Le mois de fin ne peut pas précéder le mois de début.",
+    path: ["endMonth"],
+  })
   .refine(
     (d) => !d.depositPaymentDate || d.depositPaymentDate <= todayISO(),
     {
@@ -70,8 +75,8 @@ async function createContract(values: Values): Promise<Contract> {
   const payload = {
     localId: Number(values.localId),
     tenantId: Number(values.tenantId),
-    startDate: values.startDate,
-    endDate: values.endDate?.trim() ? values.endDate : undefined,
+    startDate: firstDayOf(values.startMonth),
+    endDate: values.endMonth ? lastDayOf(values.endMonth) : undefined,
     rentAmount: Number(values.rentAmount),
     depositPaymentMethod: values.depositPaymentMethod,
     depositPaymentDate: values.depositPaymentDate,
@@ -114,8 +119,8 @@ export function ContractFormDialog({
     defaultValues: {
       localId: "",
       tenantId: "",
-      startDate: "",
-      endDate: "",
+      startMonth: "",
+      endMonth: "",
       rentAmount: "",
       depositPaymentMethod: "CASH",
       depositPaymentDate: "",
@@ -210,12 +215,17 @@ export function ContractFormDialog({
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
-                name="startDate"
+                name="startMonth"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Début</FormLabel>
                     <FormControl>
-                      <Input type="date" disabled={mutation.isPending} {...field} />
+                      <Input
+                        type="month"
+                        placeholder="AAAA-MM"
+                        disabled={mutation.isPending}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -223,14 +233,19 @@ export function ContractFormDialog({
               />
               <FormField
                 control={form.control}
-                name="endDate"
+                name="endMonth"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
                       Fin <span className="text-muted-foreground">(optionnel)</span>
                     </FormLabel>
                     <FormControl>
-                      <Input type="date" disabled={mutation.isPending} {...field} />
+                      <Input
+                        type="month"
+                        placeholder="AAAA-MM"
+                        disabled={mutation.isPending}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

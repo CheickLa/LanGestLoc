@@ -28,31 +28,9 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { formatGNF } from "@/lib/format";
+import { firstDayOf, monthLabel, monthOf, nextMonthOf } from "@/lib/months";
 
 type Values = { amount: string; month: string };
-
-/** "2026-02-01T00:00:00.000Z" → "2026-02" (mois UTC). */
-function monthOf(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-/** Mois suivant celui de la date donnée, au format "YYYY-MM". */
-function nextMonthOf(iso: string): string {
-  const d = new Date(iso);
-  const next = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
-  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-/** "2026-02" → "février 2026". */
-function monthLabel(ym: string): string {
-  const [y, m] = ym.split("-").map(Number);
-  return new Intl.DateTimeFormat("fr-FR", {
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(y, m - 1, 1)));
-}
 
 async function increase(
   contractId: number,
@@ -129,7 +107,7 @@ export function IncreaseRentDialog({
     mutationFn: (values: Values) =>
       increase(contractId, {
         amount: Number(values.amount),
-        effectiveFrom: `${values.month}-01`,
+        effectiveFrom: firstDayOf(values.month),
       }),
     onSuccess: () => {
       toast.success("Loyer augmenté.");
