@@ -21,32 +21,45 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { lastDayOf, monthLabel, monthOf, previousMonthOf } from "@/lib/months";
 
 const schema = z.object({
-  endDate: z.string().min(1, "La date de fin est requise."),
+  lastMonth: z.string().min(1, "Le dernier mois est requis."),
   paymentDate: z.string().min(1, "La date de restitution est requise."),
   paymentMethod: z.enum(["CASH", "ORANGE_MONEY", "MOBILE_MONEY"]),
 });
 type Values = z.infer<typeof schema>;
 
+// Le backend accepte la fin du mois en cours ou du précédent, jamais avant le début du contrat.
+function lastMonthChoices(startDate: string): string[] {
+  const now = new Date();
+  const previous = previousMonthOf(now);
+  return previous >= monthOf(startDate) ? [monthOf(now), previous] : [monthOf(now)];
+}
+
 async function terminate(contractId: number, values: Values): Promise<void> {
   const response = await fetch(`/api/contracts/${contractId}/terminate`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(values),
+    body: JSON.stringify({
+      endDate: lastDayOf(values.lastMonth),
+      paymentDate: values.paymentDate,
+      paymentMethod: values.paymentMethod,
+    }),
   });
   if (!response.ok) {
     const data = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new Error(
       data?.message ??
         (response.status === 409
-          ? "Des loyers échus restent impayés : réglez-les avant de résilier."
+          ? "Des loyers restent impayés : réglez-les avant de résilier."
           : "Résiliation impossible."),
     );
   }
@@ -56,19 +69,24 @@ export function TerminateContractDialog({
   open,
   onOpenChange,
   contractId,
+  startDate,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contractId: number;
+  startDate: string;
 }) {
   const router = useRouter();
+  const choices = lastMonthChoices(startDate);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { endDate: "", paymentDate: "", paymentMethod: "CASH" },
+    defaultValues: { lastMonth: "", paymentDate: "", paymentMethod: "CASH" },
   });
 
   useEffect(() => {
-    if (open) form.reset({ endDate: "", paymentDate: "", paymentMethod: "CASH" });
+    if (open) {
+      form.reset({ lastMonth: monthOf(new Date()), paymentDate: "", paymentMethod: "CASH" });
+    }
   }, [open, form]);
 
   const mutation = useMutation({
@@ -92,8 +110,8 @@ export function TerminateContractDialog({
         </DialogHeader>
 
         <div className="rounded-lg border border-danger-foreground/25 bg-danger/40 px-3 py-2 text-sm text-danger-foreground">
-          Tous les loyers échus doivent être réglés avant la résiliation. La caution est
-          restituée au locataire.
+          Les loyers doivent être réglés jusqu&apos;au dernier mois inclus avant la
+          résiliation. La caution est restituée au locataire.
         </div>
 
         <Form {...form}>
@@ -103,13 +121,24 @@ export function TerminateContractDialog({
           >
             <FormField
               control={form.control}
-              name="endDate"
+              name="lastMonth"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Date de fin du contrat</FormLabel>
+                  <FormLabel>Dernier mois</FormLabel>
                   <FormControl>
-                    <Input type="date" disabled={mutation.isPending} {...field} />
+                    <select
+                      className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                      disabled={mutation.isPending}
+                      {...field}
+                    >
+                      {choices.map((ym) => (
+                        <option key={ym} value={ym}>
+                          {monthLabel(ym)}
+                        </option>
+                      ))}
+                    </select>
                   </FormControl>
+                  <FormDescription>Le mois choisi est dû en entier.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
