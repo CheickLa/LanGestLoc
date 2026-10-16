@@ -107,6 +107,7 @@ const startDate = isoDay(new Date(Date.UTC(Y, M, 1))); // 1er du mois courant
 const today = isoDay(now);
 const currentMonth = `${Y}-${pad(M + 1)}`; // YYYY-MM
 const firstNextMonth = isoDay(new Date(Date.UTC(Y, M + 1, 1)));
+const lastDayOfMonth = isoDay(new Date(Date.UTC(Y, M + 1, 0))); // dernier jour du mois courant
 // Mois décalé (offset en mois, gère le passage d'année via Date.UTC)
 const monthStr = (offset) => {
   const d = new Date(Date.UTC(Y, M + offset, 1));
@@ -130,6 +131,12 @@ async function createLocal(token, name) {
     }
   }
   throw new Error('createLocal: impossible de trouver un code libre');
+}
+
+// L'échéance du mois courant naît avec le contrat
+async function currentMonthDue(token, contractId) {
+  const res = await req('GET', `/rent-dues/contract/${contractId}`, { token });
+  return (res.json || []).find((d) => d.month?.startsWith(startDate));
 }
 
 // ── Scénario ─────────────────────────────────────────────────────────────────
@@ -256,6 +263,12 @@ async function main() {
   const dupContract = await req('POST', '/contracts', { token: adminToken, body: contractBody });
   expect('POST /contracts 2e contrat actif même local → 409', dupContract, 409);
 
+  const badStart = await req('POST', '/contracts', {
+    token: adminToken,
+    body: { ...contractBody, startDate: `${currentMonth}-15` },
+  });
+  expect('POST /contracts début hors 1er du mois → 400', badStart, 400);
+
   const contracts = await req('GET', '/contracts?skip=0&take=5', { token: adminToken });
   expect('GET /contracts (paginé) → 200', contracts, 200);
 
@@ -288,27 +301,27 @@ async function main() {
 
   // ===== ÉCHÉANCES =====
   section('Échéances (RentDue)');
-  const due1 = await req('POST', '/rent-dues/generate', {
-    token: adminToken,
-    body: { contractId: c1, month: currentMonth },
-  });
-  expect('POST /rent-dues/generate → 201', due1, 201);
-  const dueId = due1.json?.id;
-  check('échéance générée = montant du loyer (500000)', due1.json?.amount === 500000);
+  const allDues = await req('GET', `/rent-dues/contract/${c1}`, { token: adminToken });
+  expect('GET /rent-dues/contract/:id → 200', allDues, 200);
+  const due1 = (allDues.json || []).find((d) => d.month?.startsWith(startDate));
+  check(
+    "l'échéance du mois courant est créée avec le contrat",
+    !!due1,
+    `échéances=${JSON.stringify(allDues.json)}`,
+  );
+  const dueId = due1?.id;
+  check('échéance = montant du loyer (500000)', due1?.amount === 500000);
 
   const dupDue = await req('POST', '/rent-dues/generate', {
     token: adminToken,
     body: { contractId: c1, month: currentMonth },
   });
-  expect('POST /rent-dues/generate même mois → 409', dupDue, 409);
-
-  const allDues = await req('GET', `/rent-dues/contract/${c1}`, { token: adminToken });
-  expect('GET /rent-dues/contract/:id → 200', allDues, 200);
+  expect('POST /rent-dues/generate sur le mois déjà créé → 409', dupDue, 409);
 
   const pendingDues = await req('GET', `/rent-dues/contract/${c1}/pending`, { token: adminToken });
   expect('GET /rent-dues/contract/:id/pending → 200', pendingDues, 200);
   check(
-    "l'échéance générée est PENDING",
+    "l'échéance du mois courant est PENDING",
     Array.isArray(pendingDues.json) && pendingDues.json.some((d) => d.id === dueId),
   );
 
@@ -402,9 +415,9 @@ async function main() {
   check('contrat multi-mois créé', contractMM.status === 201, `status=${contractMM.status}`);
   const cMM = contractMM.json?.id;
 
-  // Génère 3 échéances : M-2, M-1, M
+  // M naît avec le contrat, on génère M-2 et M-1
   const mmDueIds = [];
-  for (const off of [-2, -1, 0]) {
+  for (const off of [-2, -1]) {
     const d = await req('POST', '/rent-dues/generate', {
       token: adminToken,
       body: { contractId: cMM, month: monthStr(off) },
@@ -412,7 +425,9 @@ async function main() {
     if (d.status === 201) mmDueIds.push(d.json.id);
     else check(`génération échéance ${monthStr(off)}`, false, `status=${d.status} ${JSON.stringify(d.json)}`);
   }
-  check('3 échéances générées (M-2, M-1, M)', mmDueIds.length === 3, `générées=${mmDueIds.length}`);
+  const mmCurrent = await currentMonthDue(adminToken, cMM);
+  if (mmCurrent) mmDueIds.push(mmCurrent.id);
+  check('3 échéances à payer (M-2, M-1, M)', mmDueIds.length === 3, `trouvées=${mmDueIds.length}`);
 
   // Un seul paiement qui solde les 3 mois d'un coup
   const payMM = await req('POST', '/payments', {
@@ -463,29 +478,25 @@ async function main() {
   check('contrat à résilier créé', ct.status === 201, `status=${ct.status}`);
   const ctId = ct.json?.id;
 
-  // Règle 9 : une échéance impayée dont le mois précède la date de fin
-  // interdit la résiliation. Les loyers se règlent AVANT de résilier.
-  const dueT = await req('POST', '/rent-dues/generate', {
-    token: adminToken,
-    body: { contractId: ctId, month: currentMonth },
-  });
-  expect('échéance générée sur le contrat à résilier → 201', dueT, 201);
+  // Règle 9 : le dernier mois est dû en entier, il se règle avant la résiliation
+  const dueT = await currentMonthDue(adminToken, ctId);
+  check("l'échéance du mois courant existe sur le contrat à résilier", !!dueT);
 
   const earlyTerminate = await req('PATCH', `/contracts/${ctId}/terminate`, {
     token: adminToken,
-    body: { endDate: today, paymentDate: today, paymentMethod: 'CASH' },
+    body: { endDate: lastDayOfMonth, paymentDate: today, paymentMethod: 'CASH' },
   });
-  expect('PATCH /terminate avec une échéance impayée → 409', earlyTerminate, 409);
+  expect('PATCH /terminate avec le mois courant impayé → 409', earlyTerminate, 409);
 
   const payT = await req('POST', '/payments', {
     token: adminToken,
-    body: { rentDueIds: [dueT.json?.id], paymentDate: today, paymentMethod: 'CASH' },
+    body: { rentDueIds: [dueT?.id], paymentDate: today, paymentMethod: 'CASH' },
   });
   expect("solde de l'échéance avant résiliation → 201", payT, 201);
 
   const terminate = await req('PATCH', `/contracts/${ctId}/terminate`, {
     token: adminToken,
-    body: { endDate: today, paymentDate: today, paymentMethod: 'CASH' },
+    body: { endDate: lastDayOfMonth, paymentDate: today, paymentMethod: 'CASH' },
   });
   expect('PATCH /contracts/:id/terminate (loyers soldés) → 200', terminate, 200);
   check('contrat passé en TERMINATED', terminate.json?.status === 'TERMINATED');
@@ -526,6 +537,13 @@ async function main() {
   });
   expect('PATCH /contracts/:id/cancel (aucun paiement RENT) → 200', cancel, 200);
   check('contrat passé en CANCELED', cancel.json?.status === 'CANCELED');
+
+  const duesX = await req('GET', `/rent-dues/contract/${cx.json?.id}`, { token: adminToken });
+  check(
+    "l'échéance impayée du mois courant est supprimée",
+    Array.isArray(duesX.json) && duesX.json.length === 0,
+    `restantes=${duesX.json?.length}`,
+  );
 
   // ===== BASCULE EN LATE =====
   // une échéance impayée dont l'exigibilité est passée doit basculer
