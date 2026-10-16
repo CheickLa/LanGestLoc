@@ -11,6 +11,8 @@ import { FindContractsQueryDto } from './dto/find-contracts-query.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentsService } from '@/payments/payments.service';
 import { ContractDocumentsService } from './contract-documents.service';
+import { firstOfMonth, isLastDayOfMonth } from '@/common/months';
+import { dueDateOf } from '@/rent-due/due-date';
 import {
   ContractStatus,
   PaymentType,
@@ -39,6 +41,16 @@ export class ContractsService {
 
     const start = new Date(startDate);
     const end = endDate ? new Date(endDate) : null;
+    if (start.getUTCDate() !== 1) {
+      throw new BadRequestException(
+        "La date de début doit être le 1er d'un mois",
+      );
+    }
+    if (end && !isLastDayOfMonth(end)) {
+      throw new BadRequestException(
+        "La date de fin doit être le dernier jour d'un mois",
+      );
+    }
     if (end && end <= start) {
       throw new BadRequestException(
         'La date de fin doit être postérieure à la date de début',
@@ -63,6 +75,8 @@ export class ContractsService {
       );
     }
 
+    const currentMonth = firstOfMonth(new Date());
+
     try {
       const { contract, depositPayment } = await this.prisma.$transaction(
         async (tx) => {
@@ -86,13 +100,26 @@ export class ContractsService {
             },
           });
 
-          await tx.rent.create({
+          const rent = await tx.rent.create({
             data: {
               contractId: contract.id,
               amount: rentAmount,
               effectiveFrom: start,
             },
           });
+
+          // Les mois passés ont été réglés hors de l'appli.
+          if (start <= currentMonth) {
+            await tx.rentDue.create({
+              data: {
+                contractId: contract.id,
+                rentId: rent.id,
+                month: currentMonth,
+                amount: rentAmount,
+                dueDate: dueDateOf(currentMonth),
+              },
+            });
+          }
 
           await tx.deposit.create({
             data: {
@@ -213,14 +240,21 @@ export class ContractsService {
     }
 
     const endDate = new Date(dto.endDate);
+    if (!isLastDayOfMonth(endDate)) {
+      throw new BadRequestException(
+        "La date de fin doit être le dernier jour d'un mois",
+      );
+    }
     if (endDate < contract.startDate) {
       throw new BadRequestException(
         'La date de fin doit être postérieure ou égale à la date de début du contrat',
       );
     }
-    if (endDate.getTime() > Date.now()) {
+    const now = new Date();
+    const endMonth = firstOfMonth(endDate);
+    if (endMonth < firstOfMonth(now, -1) || endMonth > firstOfMonth(now)) {
       throw new BadRequestException(
-        'La date de fin du contrat ne peut pas être dans le futur',
+        'La date de fin doit être la fin du mois en cours ou du mois précédent',
       );
     }
 
@@ -309,6 +343,14 @@ export class ContractsService {
         `Le contrat #${id} n'a pas de caution à rembourser`,
       );
     }
+    const depositHeld = contract.payments.find(
+      (p) => p.type === PaymentType.DEPOSIT_HELD,
+    );
+    if (!depositHeld) {
+      throw new ConflictException(
+        `Le contrat #${id} n'a pas de versement de caution`,
+      );
+    }
 
     const rentPayments = contract.payments.filter(
       (p) => p.type === PaymentType.RENT,
@@ -325,9 +367,9 @@ export class ContractsService {
         'La date de remboursement ne peut pas être dans le futur',
       );
     }
-    if (paymentDate < contract.startDate) {
+    if (paymentDate < depositHeld.paymentDate) {
       throw new BadRequestException(
-        'La date de remboursement ne peut pas être antérieure au début du contrat',
+        'La date de remboursement ne peut pas être antérieure au versement de la caution',
       );
     }
 
