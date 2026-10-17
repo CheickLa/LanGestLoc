@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { formatGNF, formatDate } from "@/lib/format";
+import { monthOf } from "@/lib/months";
 
 import { IncreaseRentDialog } from "./increase-rent-dialog";
 import { TerminateContractDialog } from "./terminate-contract-dialog";
@@ -74,6 +75,10 @@ export function ContractDetailClient({
 
   const isActive = contract.status === "ACTIVE";
   const canAct = isAdmin && isActive;
+  const lastDueMonth = rentDues.reduce<string | null>(
+    (last, d) => (last === null || monthOf(d.month) > last ? monthOf(d.month) : last),
+    null,
+  );
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -241,12 +246,14 @@ export function ContractDetailClient({
         contractId={contract.id}
         currentAmount={contract.activeRent?.amount ?? null}
         currentEffectiveFrom={contract.activeRent?.effectiveFrom ?? null}
+        lastDueMonth={lastDueMonth}
       />
       <TerminateContractDialog
         open={action === "terminate"}
         onOpenChange={(o) => setAction(o ? "terminate" : null)}
         contractId={contract.id}
         startDate={contract.startDate}
+        endDate={contract.endDate}
         onCancelInstead={() => setAction("cancel")}
       />
       <CancelContractDialog

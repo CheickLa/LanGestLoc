@@ -53,18 +53,24 @@ export function IncreaseRentDialog({
   contractId,
   currentAmount,
   currentEffectiveFrom,
+  lastDueMonth,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contractId: number;
   currentAmount: number | null;
   currentEffectiveFrom: string | null;
+  lastDueMonth: string | null;
 }) {
   const router = useRouter();
 
-  // Plus tôt possible : le mois qui suit celui du loyer actuel.
-  const minMonth = currentEffectiveFrom ? nextMonthOf(currentEffectiveFrom) : null;
-  const currentMonth = currentEffectiveFrom ? monthOf(currentEffectiveFrom) : null;
+  // Plus tôt possible : le mois qui suit le loyer actuel et la dernière échéance créée.
+  const lastFixedMonth =
+    [currentEffectiveFrom && monthOf(currentEffectiveFrom), lastDueMonth]
+      .filter((ym): ym is string => !!ym)
+      .sort()
+      .pop() ?? null;
+  const minMonth = lastFixedMonth ? nextMonthOf(firstDayOf(lastFixedMonth)) : null;
 
   // Schéma dépendant des props → reconstruit si le loyer actuel change.
   // Les erreurs s'affichent via <FormMessage>, comme dans les autres formulaires.
@@ -85,13 +91,13 @@ export function IncreaseRentDialog({
           .string()
           .min(1, "Le mois d'effet est requis.")
           .refine(
-            (v) => currentMonth === null || v > currentMonth,
+            (v) => lastFixedMonth === null || v > lastFixedMonth,
             minMonth
               ? `L'augmentation doit prendre effet au plus tôt en ${monthLabel(minMonth)}.`
               : "Le mois d'effet doit suivre le loyer actuel.",
           ),
       }),
-    [currentAmount, currentMonth, minMonth],
+    [currentAmount, lastFixedMonth, minMonth],
   );
 
   const form = useForm<Values>({

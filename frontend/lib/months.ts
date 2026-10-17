@@ -16,9 +16,11 @@ export function nextMonthOf(value: string | Date): string {
   return shiftMonth(value, 1);
 }
 
-/** Mois précédant celui de la date donnée, au format "YYYY-MM". */
-export function previousMonthOf(value: string | Date): string {
-  return shiftMonth(value, -1);
+/** ("2026-01", "2026-03") → ["2026-01", "2026-02", "2026-03"]. */
+export function monthRange(from: string, to: string): string[] {
+  const months: string[] = [];
+  for (let ym = from; ym <= to; ym = nextMonthOf(firstDayOf(ym))) months.push(ym);
+  return months;
 }
 
 /** "2026-02" → true ; "2026-13", "10/2026" → false. */
