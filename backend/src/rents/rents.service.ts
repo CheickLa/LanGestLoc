@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { CreateRentDto } from './dto/create-rent.dto';
 import { PrismaService } from '@/prisma/prisma.service';
+import { firstOfMonth } from '@/common/months';
 import { ContractStatus } from '@generated/prisma/client';
 
 @Injectable()
@@ -52,6 +53,23 @@ export class RentsService {
     if (newEffectiveFrom <= activeRent.effectiveFrom) {
       throw new BadRequestException(
         `La date d'entrée en vigueur doit être après le ${activeRent.effectiveFrom.toISOString().split('T')[0]}`,
+      );
+    }
+
+    if (contract.endDate && newEffectiveFrom > firstOfMonth(contract.endDate)) {
+      throw new BadRequestException(
+        "L'augmentation ne peut pas prendre effet après la fin prévue du contrat",
+      );
+    }
+
+    // Le montant d'une échéance est figé : une augmentation ne vise que des mois pas encore facturés.
+    const lastBilled = await this.prisma.rentDue.findFirst({
+      where: { contractId, month: { gte: newEffectiveFrom } },
+      orderBy: { month: 'desc' },
+    });
+    if (lastBilled) {
+      throw new ConflictException(
+        `Le loyer est déjà facturé jusqu'en ${lastBilled.month.toISOString().slice(0, 7)} : l'augmentation doit prendre effet après ce mois`,
       );
     }
 
