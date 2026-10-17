@@ -51,7 +51,8 @@ export class RentsController {
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
   @ApiResponse({
     status: 409,
-    description: 'Contrat non actif ou aucun loyer actif trouvé',
+    description:
+      'Contrat non actif, aucun loyer actif trouvé, ou mois déjà facturé',
   })
   create(@Body() createRentDto: CreateRentDto) {
     return this.rentsService.create(createRentDto);

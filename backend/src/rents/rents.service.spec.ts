@@ -19,6 +19,7 @@ const runInTransaction = <T>(cb: (tx: MockTx) => Promise<T>) => cb(mockTx);
 const mockPrisma = {
   contract: { findUnique: jest.fn() },
   rent: { findFirst: jest.fn(), findMany: jest.fn() },
+  rentDue: { findFirst: jest.fn() },
   $transaction: jest.fn(runInTransaction),
 };
 
@@ -152,6 +153,57 @@ describe('RentsService', () => {
         service.create({ ...dto, effectiveFrom: '2026-04-15' }),
       ).rejects.toThrow(BadRequestException);
       expect(mockTx.rent.create).not.toHaveBeenCalled();
+    });
+
+    it('refuse une augmentation sur un mois déjà facturé', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        id: 1,
+        status: ContractStatus.ACTIVE,
+        endDate: null,
+      });
+      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+      mockPrisma.rentDue.findFirst.mockResolvedValue({
+        month: new Date('2026-10-01'),
+      });
+
+      await expect(service.create(dto)).rejects.toThrow(
+        "Le loyer est déjà facturé jusqu'en 2026-10",
+      );
+      expect(mockPrisma.rentDue.findFirst).toHaveBeenCalledWith({
+        where: { contractId: 1, month: { gte: new Date('2026-04-01') } },
+        orderBy: { month: 'desc' },
+      });
+      expect(mockTx.rent.create).not.toHaveBeenCalled();
+    });
+
+    it('refuse une augmentation après la fin prévue du contrat', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        id: 1,
+        status: ContractStatus.ACTIVE,
+        endDate: new Date('2026-03-31'),
+      });
+      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+      mockPrisma.rentDue.findFirst.mockResolvedValue(null);
+
+      await expect(service.create(dto)).rejects.toThrow(
+        "L'augmentation ne peut pas prendre effet après la fin prévue du contrat",
+      );
+      expect(mockTx.rent.create).not.toHaveBeenCalled();
+    });
+
+    it('accepte une augmentation au mois de la fin prévue', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        id: 1,
+        status: ContractStatus.ACTIVE,
+        endDate: new Date('2026-04-30'),
+      });
+      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+      mockPrisma.rentDue.findFirst.mockResolvedValue(null);
+      mockTx.rent.create.mockResolvedValue({ id: 2 });
+
+      await service.create(dto);
+
+      expect(mockTx.rent.create).toHaveBeenCalled();
     });
   });
 
