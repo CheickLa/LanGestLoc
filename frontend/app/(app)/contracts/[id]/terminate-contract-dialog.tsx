@@ -28,7 +28,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { lastDayOf, monthLabel, monthOf, previousMonthOf } from "@/lib/months";
+import { lastDayOf, monthLabel, monthOf, monthRange } from "@/lib/months";
 
 const schema = z.object({
   lastMonth: z.string().min(1, "Le dernier mois est requis."),
@@ -37,10 +37,11 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
-// Le backend accepte la fin du mois en cours ou du précédent, jamais avant le début du contrat.
-function lastMonthChoices(startDate: string): string[] {
-  const now = new Date();
-  return [monthOf(now), previousMonthOf(now)].filter((ym) => ym >= monthOf(startDate));
+// Le backend accepte toute fin de mois entre le début du contrat et le mois en cours, sans dépasser la fin prévue.
+function lastMonthChoices(startDate: string, endDate: string | null): string[] {
+  const current = monthOf(new Date());
+  const last = endDate && monthOf(endDate) < current ? monthOf(endDate) : current;
+  return monthRange(monthOf(startDate), last).reverse();
 }
 
 async function terminate(contractId: number, values: Values): Promise<void> {
@@ -69,16 +70,18 @@ export function TerminateContractDialog({
   onOpenChange,
   contractId,
   startDate,
+  endDate,
   onCancelInstead,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contractId: number;
   startDate: string;
+  endDate: string | null;
   onCancelInstead: () => void;
 }) {
   const router = useRouter();
-  const choices = lastMonthChoices(startDate);
+  const choices = lastMonthChoices(startDate, endDate);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { lastMonth: "", paymentDate: "", paymentMethod: "CASH" },
@@ -86,9 +89,13 @@ export function TerminateContractDialog({
 
   useEffect(() => {
     if (open) {
-      form.reset({ lastMonth: monthOf(new Date()), paymentDate: "", paymentMethod: "CASH" });
+      form.reset({
+        lastMonth: lastMonthChoices(startDate, endDate)[0] ?? "",
+        paymentDate: "",
+        paymentMethod: "CASH",
+      });
     }
-  }, [open, form]);
+  }, [open, form, startDate, endDate]);
 
   const mutation = useMutation({
     mutationFn: (values: Values) => terminate(contractId, values),
