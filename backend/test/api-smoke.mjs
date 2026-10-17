@@ -415,19 +415,17 @@ async function main() {
   check('contrat multi-mois créé', contractMM.status === 201, `status=${contractMM.status}`);
   const cMM = contractMM.json?.id;
 
-  // M naît avec le contrat, on génère M-2 et M-1
-  const mmDueIds = [];
-  for (const off of [-2, -1]) {
-    const d = await req('POST', '/rent-dues/generate', {
-      token: adminToken,
-      body: { contractId: cMM, month: monthStr(off) },
-    });
-    if (d.status === 201) mmDueIds.push(d.json.id);
-    else check(`génération échéance ${monthStr(off)}`, false, `status=${d.status} ${JSON.stringify(d.json)}`);
-  }
-  const mmCurrent = await currentMonthDue(adminToken, cMM);
-  if (mmCurrent) mmDueIds.push(mmCurrent.id);
-  check('3 échéances à payer (M-2, M-1, M)', mmDueIds.length === 3, `trouvées=${mmDueIds.length}`);
+  // Les mois écoulés (M-2, M-1, M) naissent avec le contrat
+  const mmDues = await req('GET', `/rent-dues/contract/${cMM}`, { token: adminToken });
+  const mmDueIds = (mmDues.json || []).map((d) => d.id);
+  check('3 échéances créées avec le contrat (M-2, M-1, M)', mmDueIds.length === 3, `créées=${mmDueIds.length}`);
+
+  // Une augmentation ne peut pas viser un mois dont l'échéance est déjà créée
+  const rentUpMM = await req('POST', '/rents', {
+    token: adminToken,
+    body: { contractId: cMM, amount: RENT_MM + 100000, effectiveFrom: firstOfOffset(-1) },
+  });
+  expect('POST /rents sur un mois déjà facturé → 409', rentUpMM, 409);
 
   // Un seul paiement qui solde les 3 mois d'un coup
   const payMM = await req('POST', '/payments', {
@@ -565,26 +563,153 @@ async function main() {
   check('contrat démarré il y a 2 mois créé', cl.status === 201, `status=${cl.status}`);
   const clId = cl.json?.id;
 
-  const dueL = await req('POST', '/rent-dues/generate', {
-    token: adminToken,
-    body: { contractId: clId, month: monthStr(-2) },
-  });
-  expect('échéance de M-2 générée → 201', dueL, 201);
-  check(
-    "l'échéance naît PENDING",
-    dueL.json?.status === 'PENDING',
-    `status=${dueL.json?.status}`,
-  );
+  const duesLBefore = await req('GET', `/rent-dues/contract/${clId}`, { token: adminToken });
+  const dueL = (duesLBefore.json || []).find((d) => d.month?.startsWith(firstOfOffset(-2)));
+  check("l'échéance de M-2 est créée avec le contrat", !!dueL, `échéances=${duesLBefore.json?.length}`);
+  check("l'échéance naît PENDING", dueL?.status === 'PENDING', `status=${dueL?.status}`);
 
   const markLate = await req('POST', '/rent-dues/cron/mark-late', { token: adminToken });
   expect('POST /rent-dues/cron/mark-late → 2xx', markLate, [200, 201]);
 
   const duesL = await req('GET', `/rent-dues/contract/${clId}`, { token: adminToken });
-  const dueLAfter = (duesL.json || []).find((d) => d.id === dueL.json?.id);
+  const dueLAfter = (duesL.json || []).find((d) => d.id === dueL?.id);
   check(
     "l'échéance impayée de M-2 est passée en LATE",
     dueLAfter?.status === 'LATE',
     `status=${dueLAfter?.status}`,
+  );
+
+  // ===== CONTRAT SUR UNE PÉRIODE PASSÉE =====
+  // Saisi après coup : échéances limitées à sa période, résiliation à sa fin.
+  section('Contrat sur une période passée');
+  const localP = await createLocal(adminToken, 'E2E Local période passée');
+  const startP = firstOfOffset(-3);
+  const endP = isoDay(new Date(Date.UTC(Y, M - 1, 0))); // dernier jour de M-2
+  const cp = await req('POST', '/contracts', {
+    token: adminToken,
+    body: {
+      localId: localP.id,
+      tenantId: tenant1.json.id,
+      startDate: startP,
+      endDate: endP,
+      rentAmount: 150000,
+      depositPaymentMethod: 'CASH',
+      depositPaymentDate: startP,
+    },
+  });
+  expect('POST /contracts sur une période passée → 201', cp, 201);
+  const cpId = cp.json?.id;
+
+  const monthsOfP = async () => {
+    const res = await req('GET', `/rent-dues/contract/${cpId}`, { token: adminToken });
+    return (res.json || []).map((d) => d.month.slice(0, 7)).sort().join(',');
+  };
+  const expectedP = [monthStr(-3), monthStr(-2)].join(',');
+  const monthsP = await monthsOfP();
+  check('seuls les mois de la période sont créés (M-3, M-2)', monthsP === expectedP, `mois=${monthsP}`);
+
+  const cronP = await req('POST', '/rent-dues/cron/generate', { token: adminToken });
+  expect('POST /rent-dues/cron/generate → 2xx', cronP, [200, 201]);
+  const monthsAfterCron = await monthsOfP();
+  check('le cron ne facture pas un mois après la fin', monthsAfterCron === expectedP, `mois=${monthsAfterCron}`);
+
+  const outOfPeriod = await req('POST', '/rent-dues/generate', {
+    token: adminToken,
+    body: { contractId: cpId, month: monthStr(-1) },
+  });
+  expect('POST /rent-dues/generate après la fin du contrat → 400', outOfPeriod, 400);
+
+  const duesP = await req('GET', `/rent-dues/contract/${cpId}`, { token: adminToken });
+  const payP = await req('POST', '/payments', {
+    token: adminToken,
+    body: { rentDueIds: (duesP.json || []).map((d) => d.id), paymentDate: today, paymentMethod: 'CASH' },
+  });
+  expect('solde des mois de la période → 201', payP, 201);
+
+  const terminateP = await req('PATCH', `/contracts/${cpId}/terminate`, {
+    token: adminToken,
+    body: { endDate: endP, paymentDate: today, paymentMethod: 'CASH' },
+  });
+  expect('PATCH /terminate à la fin passée du contrat → 200', terminateP, 200);
+  check('contrat passé en TERMINATED', terminateP.json?.status === 'TERMINATED');
+
+  // Un local ne se loue pas deux fois le même mois
+  const newContractOnP = (startDate, endDate) =>
+    req('POST', '/contracts', {
+      token: adminToken,
+      body: {
+        localId: localP.id,
+        tenantId: tenant1.json.id,
+        startDate,
+        ...(endDate && { endDate }),
+        rentAmount: 150000,
+        depositPaymentMethod: 'CASH',
+        depositPaymentDate: startDate,
+      },
+    });
+  const beforeP = await newContractOnP(firstOfOffset(-6), isoDay(new Date(Date.UTC(Y, M - 3, 0))));
+  expect('POST /contracts entièrement avant le contrat résilié → 201', beforeP, 201);
+  const cancelBeforeP = await req('PATCH', `/contracts/${beforeP.json?.id}/cancel`, {
+    token: adminToken,
+    body: { paymentDate: today, paymentMethod: 'CASH' },
+  });
+  expect('annulation de ce contrat → 200', cancelBeforeP, 200);
+  const overlapP = await newContractOnP(firstOfOffset(-2));
+  expect('POST /contracts qui chevauche le contrat résilié → 409', overlapP, 409);
+  const afterP = await newContractOnP(firstOfOffset(-1));
+  expect('POST /contracts juste après le contrat résilié → 201', afterP, 201);
+
+  // ===== RÉSILIATION À UNE FIN PASSÉE =====
+  // Elle n'efface aucune dette passée et ne laisse aucun paiement après sa fin.
+  section('Résiliation à une fin passée');
+  const localR = await createLocal(adminToken, 'E2E Local fin passée');
+  const startR = firstOfOffset(-2);
+  const cr = await req('POST', '/contracts', {
+    token: adminToken,
+    body: {
+      localId: localR.id,
+      tenantId: tenant1.json.id,
+      startDate: startR,
+      rentAmount: 200000,
+      depositPaymentMethod: 'CASH',
+      depositPaymentDate: startR,
+    },
+  });
+  expect('POST /contracts démarré en M-2 → 201', cr, 201);
+  const crId = cr.json?.id;
+  const duesR = await req('GET', `/rent-dues/contract/${crId}`, { token: adminToken });
+  const dueR = (offset) => (duesR.json || []).find((d) => d.month?.startsWith(firstOfOffset(offset)));
+  const payR = (offset) =>
+    req('POST', '/payments', {
+      token: adminToken,
+      body: { rentDueIds: [dueR(offset)?.id], paymentDate: today, paymentMethod: 'CASH' },
+    });
+  const terminateR = (endDate) =>
+    req('PATCH', `/contracts/${crId}/terminate`, {
+      token: adminToken,
+      body: { endDate, paymentDate: today, paymentMethod: 'CASH' },
+    });
+  const endOfM2 = isoDay(new Date(Date.UTC(Y, M - 1, 0)));
+  const endOfM1 = isoDay(new Date(Date.UTC(Y, M, 0)));
+
+  expect('paiement de M-2 → 201', await payR(-2), 201);
+  const unpaidAfterR = await terminateR(endOfM2);
+  expect('PATCH /terminate en M-2, M-1 impayé → 409', unpaidAfterR, 409);
+  check(
+    'refusé pour une échéance postérieure',
+    String(unpaidAfterR.json?.message).includes('postérieure'),
+    `message=${unpaidAfterR.json?.message}`,
+  );
+  expect('paiement de M-1 → 201', await payR(-1), 201);
+  expect('PATCH /terminate en M-2, M-1 payé → 409', await terminateR(endOfM2), 409);
+  const terminateR1 = await terminateR(endOfM1);
+  expect('PATCH /terminate en M-1, mois en cours impayé → 200', terminateR1, 200);
+  const monthsR = await req('GET', `/rent-dues/contract/${crId}`, { token: adminToken });
+  const monthsRList = (monthsR.json || []).map((d) => d.month.slice(0, 7)).sort().join(',');
+  check(
+    "l'échéance impayée du mois en cours est supprimée",
+    monthsRList === [monthStr(-2), monthStr(-1)].join(','),
+    `mois=${monthsRList}`,
   );
 
   // ===== UTILISATEURS + RÔLES =====
