@@ -25,7 +25,7 @@ const mockTx = {
     findFirst: jest.fn(),
   },
   rent: { create: jest.fn() },
-  rentDue: { create: jest.fn(), deleteMany: jest.fn() },
+  rentDue: { createMany: jest.fn(), deleteMany: jest.fn() },
   deposit: {
     create: jest.fn(),
     update: jest.fn(),
@@ -105,6 +105,14 @@ describe('ContractsService', () => {
     mockTx.rent.create.mockResolvedValue({ id: 7 });
     mockPaymentsService.createDepositHeld.mockResolvedValue({ id: 55 });
   };
+
+  const due = (month: string, dueDate: string) => ({
+    contractId: 1,
+    rentId: 7,
+    month: new Date(month),
+    amount: 500000,
+    dueDate: new Date(dueDate),
+  });
 
   describe('create', () => {
     it('should create a contract with rent, deposit, and DEPOSIT_HELD payment', async () => {
@@ -221,30 +229,27 @@ describe('ContractsService', () => {
       ).rejects.toThrow("La date de fin doit être le dernier jour d'un mois");
     });
 
-    it('crée la seule échéance du mois en cours pour un contrat commencé avant', async () => {
+    it('crée tous les mois écoulés pour un contrat commencé avant, sans fin', async () => {
       mockCreatableContract();
 
-      await service.create(createDto, 1);
+      await service.create({ ...createDto, startDate: '2027-04-01' }, 1);
 
-      expect(mockTx.rentDue.create).toHaveBeenCalledTimes(1);
-      expect(mockTx.rentDue.create).toHaveBeenCalledWith({
-        data: {
-          contractId: 1,
-          rentId: 7,
-          month: new Date('2027-06-01'),
-          amount: 500000,
-          dueDate: new Date('2027-07-05'),
-        },
+      expect(mockTx.rentDue.createMany).toHaveBeenCalledWith({
+        data: [
+          due('2027-04-01', '2027-05-05'),
+          due('2027-05-01', '2027-06-05'),
+          due('2027-06-01', '2027-07-05'),
+        ],
       });
     });
 
-    it("crée l'échéance du mois en cours pour un contrat qui commence ce mois-ci", async () => {
+    it('crée seulement le mois en cours pour un contrat qui commence ce mois-ci', async () => {
       mockCreatableContract();
 
       await service.create({ ...createDto, startDate: '2027-06-01' }, 1);
 
-      expect(mockTx.rentDue.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ month: new Date('2027-06-01') }),
+      expect(mockTx.rentDue.createMany).toHaveBeenCalledWith({
+        data: [due('2027-06-01', '2027-07-05')],
       });
     });
 
@@ -253,7 +258,113 @@ describe('ContractsService', () => {
 
       await service.create({ ...createDto, startDate: '2027-07-01' }, 1);
 
-      expect(mockTx.rentDue.create).not.toHaveBeenCalled();
+      expect(mockTx.rentDue.createMany).not.toHaveBeenCalled();
+    });
+
+    it('crée seulement les mois de la période pour un contrat déjà terminé', async () => {
+      mockCreatableContract();
+
+      await service.create(
+        { ...createDto, startDate: '2027-01-01', endDate: '2027-03-31' },
+        1,
+      );
+
+      expect(mockTx.rentDue.createMany).toHaveBeenCalledWith({
+        data: [
+          due('2027-01-01', '2027-02-05'),
+          due('2027-02-01', '2027-03-05'),
+          due('2027-03-01', '2027-04-05'),
+        ],
+      });
+    });
+
+    it("s'arrête au mois en cours quand la fin prévue est plus tard", async () => {
+      mockCreatableContract();
+
+      await service.create(
+        { ...createDto, startDate: '2027-05-01', endDate: '2027-12-31' },
+        1,
+      );
+
+      expect(mockTx.rentDue.createMany).toHaveBeenCalledWith({
+        data: [
+          due('2027-05-01', '2027-06-05'),
+          due('2027-06-01', '2027-07-05'),
+        ],
+      });
+    });
+
+    it('inclut le mois en cours quand la fin tombe ce mois-ci', async () => {
+      mockCreatableContract();
+
+      await service.create(
+        { ...createDto, startDate: '2027-05-01', endDate: '2027-06-30' },
+        1,
+      );
+
+      expect(mockTx.rentDue.createMany).toHaveBeenCalledWith({
+        data: [
+          due('2027-05-01', '2027-06-05'),
+          due('2027-06-01', '2027-07-05'),
+        ],
+      });
+    });
+
+    it("passe d'une année à l'autre pour un contrat déjà terminé", async () => {
+      mockCreatableContract();
+
+      await service.create(
+        { ...createDto, startDate: '2026-11-01', endDate: '2027-01-31' },
+        1,
+      );
+
+      expect(mockTx.rentDue.createMany).toHaveBeenCalledWith({
+        data: [
+          due('2026-11-01', '2026-12-05'),
+          due('2026-12-01', '2027-01-05'),
+          due('2027-01-01', '2027-02-05'),
+        ],
+      });
+    });
+
+    it('refuse une période qui chevauche un contrat résilié du même local', async () => {
+      mockCreatableContract();
+      mockTx.contract.findFirst.mockImplementation(
+        ({ where }: { where: { status: ContractStatus } }) =>
+          Promise.resolve(
+            where.status === ContractStatus.TERMINATED ? { id: 9 } : null,
+          ),
+      );
+
+      await expect(
+        service.create(
+          { ...createDto, startDate: '2027-03-01', endDate: '2027-05-31' },
+          1,
+        ),
+      ).rejects.toThrow('contrat #9');
+      expect(mockTx.contract.findFirst).toHaveBeenLastCalledWith({
+        where: {
+          localId: 1,
+          status: ContractStatus.TERMINATED,
+          endDate: { gte: new Date('2027-03-01') },
+          startDate: { lte: new Date('2027-05-31') },
+        },
+      });
+      expect(mockTx.contract.create).not.toHaveBeenCalled();
+    });
+
+    it('sans date de fin, tout contrat résilié qui finit après le début chevauche', async () => {
+      mockCreatableContract();
+
+      await service.create({ ...createDto, startDate: '2027-04-01' }, 1);
+
+      expect(mockTx.contract.findFirst).toHaveBeenLastCalledWith({
+        where: {
+          localId: 1,
+          status: ContractStatus.TERMINATED,
+          endDate: { gte: new Date('2027-04-01') },
+        },
+      });
     });
   });
 
@@ -500,18 +611,106 @@ describe('ContractsService', () => {
       });
     });
 
-    it.each(['2027-04-30', '2027-07-31'])(
-      'refuse une fin hors du mois en cours et du mois précédent : %s',
-      async (endDate) => {
-        mockPrisma.contract.findUnique.mockResolvedValue(contract);
+    it('refuse une fin après le mois en cours', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue(contract);
 
-        await expect(
-          service.terminate(1, { ...refundDto, endDate }, 1),
-        ).rejects.toThrow(
-          'La date de fin doit être la fin du mois en cours ou du mois précédent',
-        );
-      },
-    );
+      await expect(
+        service.terminate(1, { ...refundDto, endDate: '2027-07-31' }, 1),
+      ).rejects.toThrow(
+        'La date de fin ne peut pas dépasser la fin du mois en cours',
+      );
+    });
+
+    it('refuse une fin après la fin prévue du contrat', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        ...contract,
+        endDate: new Date('2027-03-31'),
+      });
+
+      await expect(
+        service.terminate(1, { ...refundDto, endDate: '2027-05-31' }, 1),
+      ).rejects.toThrow(
+        'La date de fin ne peut pas dépasser la fin prévue du contrat',
+      );
+    });
+
+    it('accepte une fin plus ancienne quand rien ne reste après', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue(contract);
+      mockPrisma.rentDue.count.mockResolvedValue(0);
+      mockTx.contract.findUniqueOrThrow.mockResolvedValue({ id: 1, rents: [] });
+      mockPaymentsService.createDepositRefund.mockResolvedValue({ id: 42 });
+
+      await service.terminate(1, { ...refundDto, endDate: '2027-03-31' }, 7);
+
+      expect(mockPrisma.rentDue.count).toHaveBeenLastCalledWith({
+        where: {
+          contractId: 1,
+          month: { gt: new Date('2027-03-31') },
+          OR: [
+            { status: RentDueStatus.PAID },
+            { month: { lt: new Date('2027-06-01') } },
+          ],
+        },
+      });
+      expect(mockTx.contract.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: {
+          status: ContractStatus.TERMINATED,
+          endDate: new Date('2027-03-31'),
+        },
+      });
+    });
+
+    it('refuse une fin quand des échéances après elle sont payées ou déjà dues', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue(contract);
+      mockPrisma.rentDue.count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(2);
+
+      await expect(
+        service.terminate(1, { ...refundDto, endDate: '2027-03-31' }, 1),
+      ).rejects.toThrow('Choisir une date de fin plus tardive');
+      expect(mockPaymentsService.createDepositRefund).not.toHaveBeenCalled();
+    });
+
+    it("accepte la fin prévue d'un contrat déjà terminé", async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        ...contract,
+        startDate: new Date('2027-01-01'),
+        endDate: new Date('2027-03-31'),
+      });
+      mockPrisma.rentDue.count.mockResolvedValue(0);
+      mockTx.contract.findUniqueOrThrow.mockResolvedValue({ id: 1, rents: [] });
+      mockPaymentsService.createDepositRefund.mockResolvedValue({ id: 42 });
+
+      await service.terminate(
+        1,
+        { ...refundDto, endDate: '2027-03-31', paymentDate: '2027-04-02' },
+        7,
+      );
+
+      expect(mockTx.contract.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: {
+          status: ContractStatus.TERMINATED,
+          endDate: new Date('2027-03-31'),
+        },
+      });
+    });
+
+    it('compare au mois une fin prévue qui ne tombe pas en fin de mois', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        ...contract,
+        endDate: new Date('2027-03-15'),
+      });
+      mockPrisma.rentDue.count.mockResolvedValue(0);
+      mockTx.contract.findUniqueOrThrow.mockResolvedValue({ id: 1, rents: [] });
+      mockPaymentsService.createDepositRefund.mockResolvedValue({ id: 42 });
+
+      await expect(
+        service.terminate(1, { ...refundDto, endDate: '2027-03-31' }, 7),
+      ).resolves.toBeDefined();
+    });
 
     it("refuse une date de fin qui n'est pas le dernier jour d'un mois", async () => {
       mockPrisma.contract.findUnique.mockResolvedValue(contract);

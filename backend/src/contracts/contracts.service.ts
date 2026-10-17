@@ -11,7 +11,7 @@ import { FindContractsQueryDto } from './dto/find-contracts-query.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PaymentsService } from '@/payments/payments.service';
 import { ContractDocumentsService } from './contract-documents.service';
-import { firstOfMonth, isLastDayOfMonth } from '@/common/months';
+import { firstOfMonth, isLastDayOfMonth, monthsBetween } from '@/common/months';
 import { dueDateOf } from '@/rent-due/due-date';
 import {
   ContractStatus,
@@ -76,6 +76,11 @@ export class ContractsService {
     }
 
     const currentMonth = firstOfMonth(new Date());
+    const billedUntil =
+      end && firstOfMonth(end) < currentMonth
+        ? firstOfMonth(end)
+        : currentMonth;
+    const months = monthsBetween(start, billedUntil);
 
     try {
       const { contract, depositPayment } = await this.prisma.$transaction(
@@ -86,6 +91,21 @@ export class ContractsService {
           if (activeContract) {
             throw new ConflictException(
               `Le local #${localId} a déjà un contrat actif`,
+            );
+          }
+
+          // Un mois du local ne peut être facturé qu'à un seul contrat.
+          const overlapping = await tx.contract.findFirst({
+            where: {
+              localId,
+              status: ContractStatus.TERMINATED,
+              endDate: { gte: start },
+              ...(end && { startDate: { lte: end } }),
+            },
+          });
+          if (overlapping) {
+            throw new ConflictException(
+              `Le local #${localId} est déjà loué sur cette période (contrat #${overlapping.id})`,
             );
           }
 
@@ -108,16 +128,15 @@ export class ContractsService {
             },
           });
 
-          // Les mois passés ont été réglés hors de l'appli.
-          if (start <= currentMonth) {
-            await tx.rentDue.create({
-              data: {
+          if (months.length > 0) {
+            await tx.rentDue.createMany({
+              data: months.map((month) => ({
                 contractId: contract.id,
                 rentId: rent.id,
-                month: currentMonth,
+                month,
                 amount: rentAmount,
-                dueDate: dueDateOf(currentMonth),
-              },
+                dueDate: dueDateOf(month),
+              })),
             });
           }
 
@@ -250,11 +269,18 @@ export class ContractsService {
         'La date de fin doit être postérieure ou égale à la date de début du contrat',
       );
     }
-    const now = new Date();
-    const endMonth = firstOfMonth(endDate);
-    if (endMonth < firstOfMonth(now, -1) || endMonth > firstOfMonth(now)) {
+    const currentMonth = firstOfMonth(new Date());
+    if (firstOfMonth(endDate) > currentMonth) {
       throw new BadRequestException(
-        'La date de fin doit être la fin du mois en cours ou du mois précédent',
+        'La date de fin ne peut pas dépasser la fin du mois en cours',
+      );
+    }
+    if (
+      contract.endDate &&
+      firstOfMonth(endDate) > firstOfMonth(contract.endDate)
+    ) {
+      throw new BadRequestException(
+        'La date de fin ne peut pas dépasser la fin prévue du contrat',
       );
     }
 
@@ -280,6 +306,19 @@ export class ContractsService {
     if (unpaidUpToEnd > 0) {
       throw new ConflictException(
         `Impossible de terminer le contrat : ${unpaidUpToEnd} échéance(s) impayée(s) avant la date de fin. Régler les loyers avant la résiliation.`,
+      );
+    }
+
+    const blockingAfterEnd = await this.prisma.rentDue.count({
+      where: {
+        contractId: id,
+        month: { gt: endDate },
+        OR: [{ status: RentDueStatus.PAID }, { month: { lt: currentMonth } }],
+      },
+    });
+    if (blockingAfterEnd > 0) {
+      throw new ConflictException(
+        `Impossible de résilier à cette date : ${blockingAfterEnd} échéance(s) postérieure(s) sont déjà payées ou restent dues. Choisir une date de fin plus tardive.`,
       );
     }
 

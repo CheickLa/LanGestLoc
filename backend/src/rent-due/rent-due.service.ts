@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
   ConflictException,
@@ -32,6 +33,14 @@ export class RentDueService {
       throw new NotFoundException(`Contrat #${contractId} non trouvé`);
     if (contract.status !== ContractStatus.ACTIVE) {
       throw new ConflictException(`Le contrat #${contractId} n'est pas actif`);
+    }
+    if (
+      monthDate < firstOfMonth(contract.startDate) ||
+      (contract.endDate && monthDate > firstOfMonth(contract.endDate))
+    ) {
+      throw new BadRequestException(
+        `Le mois ${month} est hors de la période du contrat #${contractId}`,
+      );
     }
 
     const existing = await this.prisma.rentDue.findUnique({
@@ -97,7 +106,7 @@ export class RentDueService {
     });
   }
 
-  // Cron : le 1er du mois à minuit, génère l'échéance du mois des contrats ACTIFS déjà commencés
+  // Cron : le 1er du mois à minuit, crée le mois en cours des contrats ACTIFS dont la période le couvre
   @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
   async generateForAllActiveContracts() {
     this.logger.log('Cron génération RentDue: démarrage');
@@ -109,6 +118,7 @@ export class RentDueService {
       where: {
         status: ContractStatus.ACTIVE,
         startDate: { lt: firstOfMonth(now, 1) },
+        OR: [{ endDate: null }, { endDate: { gte: firstOfMonth(now) } }],
       },
       select: { id: true },
     });
