@@ -247,6 +247,7 @@ export function ContractDetailClient({
         onOpenChange={(o) => setAction(o ? "terminate" : null)}
         contractId={contract.id}
         startDate={contract.startDate}
+        onCancelInstead={() => setAction("cancel")}
       />
       <CancelContractDialog
         open={action === "cancel"}

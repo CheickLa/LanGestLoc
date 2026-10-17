@@ -40,8 +40,7 @@ type Values = z.infer<typeof schema>;
 // Le backend accepte la fin du mois en cours ou du précédent, jamais avant le début du contrat.
 function lastMonthChoices(startDate: string): string[] {
   const now = new Date();
-  const previous = previousMonthOf(now);
-  return previous >= monthOf(startDate) ? [monthOf(now), previous] : [monthOf(now)];
+  return [monthOf(now), previousMonthOf(now)].filter((ym) => ym >= monthOf(startDate));
 }
 
 async function terminate(contractId: number, values: Values): Promise<void> {
@@ -70,11 +69,13 @@ export function TerminateContractDialog({
   onOpenChange,
   contractId,
   startDate,
+  onCancelInstead,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contractId: number;
   startDate: string;
+  onCancelInstead: () => void;
 }) {
   const router = useRouter();
   const choices = lastMonthChoices(startDate);
@@ -98,6 +99,31 @@ export function TerminateContractDialog({
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  if (choices.length === 0) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Résilier le contrat</DialogTitle>
+            <DialogDescription>
+              Ce contrat ne commence qu&apos;en {monthLabel(monthOf(startDate))} : il ne peut
+              pas encore être résilié. Pour y mettre fin, il faut l&apos;annuler, et la caution
+              est remboursée.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Fermer
+            </Button>
+            <Button type="button" onClick={onCancelInstead}>
+              Annuler le contrat
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
