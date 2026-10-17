@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { RentDueService } from './rent-due.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ContractStatus, RentDueStatus } from '@generated/prisma/client';
@@ -31,7 +35,12 @@ describe('RentDueService', () => {
   });
 
   const dto = { contractId: 1, month: '2026-04' };
-  const activeContract = { id: 1, status: ContractStatus.ACTIVE };
+  const activeContract = {
+    id: 1,
+    status: ContractStatus.ACTIVE,
+    startDate: new Date('2026-01-01'),
+    endDate: null,
+  };
   const activeRent = {
     id: 1,
     contractId: 1,
@@ -98,6 +107,73 @@ describe('RentDueService', () => {
 
       await expect(service.generate(dto)).rejects.toThrow(NotFoundException);
     });
+
+    it('refuse un mois avant le début du contrat', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        ...activeContract,
+        startDate: new Date('2026-05-01'),
+      });
+
+      await expect(service.generate(dto)).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.rentDue.create).not.toHaveBeenCalled();
+    });
+
+    it('refuse un mois après la fin du contrat', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        ...activeContract,
+        endDate: new Date('2026-03-31'),
+      });
+
+      await expect(service.generate(dto)).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.rentDue.create).not.toHaveBeenCalled();
+    });
+
+    it('accepte le mois de début et le mois de fin du contrat', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        ...activeContract,
+        startDate: new Date('2026-04-01'),
+        endDate: new Date('2026-04-30'),
+      });
+      mockPrisma.rentDue.findUnique.mockResolvedValue(null);
+      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+      mockPrisma.rentDue.create.mockResolvedValue({ id: 2 });
+
+      await service.generate(dto);
+
+      expect(mockPrisma.rentDue.create).toHaveBeenCalled();
+    });
+
+    it("accepte janvier pour un contrat commencé en décembre de l'année précédente", async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        ...activeContract,
+        startDate: new Date('2025-12-01'),
+      });
+      mockPrisma.rentDue.findUnique.mockResolvedValue(null);
+      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+      mockPrisma.rentDue.create.mockResolvedValue({ id: 3 });
+
+      await service.generate({ ...dto, month: '2026-01' });
+
+      expect(mockPrisma.rentDue.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          month: new Date('2026-01-01'),
+          dueDate: new Date('2026-02-05'),
+        }),
+      });
+    });
+
+    it("refuse janvier pour un contrat terminé en décembre de l'année précédente", async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        ...activeContract,
+        startDate: new Date('2025-01-01'),
+        endDate: new Date('2025-12-31'),
+      });
+
+      await expect(
+        service.generate({ ...dto, month: '2026-01' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrisma.rentDue.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('findAllByContract', () => {
@@ -157,7 +233,7 @@ describe('RentDueService', () => {
       jest.useRealTimers();
     });
 
-    it('ne génère que pour les contrats actifs déjà commencés', async () => {
+    it('ne génère que pour les contrats actifs dont la période couvre le mois', async () => {
       mockPrisma.contract.findMany.mockResolvedValue([{ id: 1 }, { id: 2 }]);
       mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
       mockPrisma.rentDue.findUnique.mockResolvedValue(null);
@@ -170,6 +246,7 @@ describe('RentDueService', () => {
         where: {
           status: ContractStatus.ACTIVE,
           startDate: { lt: new Date('2026-11-01') },
+          OR: [{ endDate: null }, { endDate: { gte: new Date('2026-10-01') } }],
         },
         select: { id: true },
       });
@@ -184,6 +261,44 @@ describe('RentDueService', () => {
       await service.generateForAllActiveContracts();
 
       expect(mockPrisma.rentDue.create).not.toHaveBeenCalled();
+    });
+
+    describe('en janvier', () => {
+      beforeAll(() => {
+        jest.setSystemTime(new Date('2027-01-01T00:00:00Z'));
+      });
+
+      afterAll(() => {
+        jest.setSystemTime(new Date('2026-10-15T10:00:00Z'));
+      });
+
+      it('crée le mois de janvier de la nouvelle année', async () => {
+        mockPrisma.contract.findMany.mockResolvedValue([{ id: 1 }]);
+        mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
+        mockPrisma.rentDue.findUnique.mockResolvedValue(null);
+        mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+        mockPrisma.rentDue.create.mockResolvedValue({ id: 1 });
+
+        await service.generateForAllActiveContracts();
+
+        expect(mockPrisma.contract.findMany).toHaveBeenCalledWith({
+          where: {
+            status: ContractStatus.ACTIVE,
+            startDate: { lt: new Date('2027-02-01') },
+            OR: [
+              { endDate: null },
+              { endDate: { gte: new Date('2027-01-01') } },
+            ],
+          },
+          select: { id: true },
+        });
+        expect(mockPrisma.rentDue.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            month: new Date('2027-01-01'),
+            dueDate: new Date('2027-02-05'),
+          }),
+        });
+      });
     });
   });
 

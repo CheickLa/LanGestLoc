@@ -38,7 +38,8 @@ export class RentDueController {
   @ApiCreatedResponse({ description: 'Échéance créée', type: RentDueEntity })
   @ApiResponse({
     status: 400,
-    description: 'Données invalides (format du mois incorrect, etc.)',
+    description:
+      'Données invalides (format du mois incorrect) ou mois hors de la période du contrat',
   })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({
