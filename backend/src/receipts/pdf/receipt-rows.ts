@@ -15,9 +15,12 @@ export function formatMonth(date: Date): string {
   });
 }
 
-export function formatAmount(n: number | { toNumber: () => number }): string {
-  const val = typeof n === 'object' ? n.toNumber() : n;
-  return val.toLocaleString('fr-FR').replace(/\s/g, ' ') + ' GNF';
+export function groupDigits(n: number): string {
+  return String(n).replace(/\B(?=(\d{3})+$)/g, ' ');
+}
+
+function formatAmount(n: number): string {
+  return `${groupDigits(n)} GNF`;
 }
 
 export function groupReceiptLines(
@@ -50,7 +53,7 @@ export function groupReceiptLines(
     return {
       from: formatMonth(first.month),
       to: formatMonth(last.month),
-      detail: `${run.length} × ${formatAmount(first.amount)}`,
+      detail: `${run.length} mois × ${formatAmount(first.amount)}`,
       total,
     };
   });
