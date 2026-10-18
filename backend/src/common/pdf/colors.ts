@@ -1,0 +1,17 @@
+export const COLOR = {
+  brand: '#194FD6',
+  ink: '#0E1726',
+  muted: '#5B6472',
+  faint: '#8A92A1',
+  line: '#E8EAF0',
+  soft: '#F4F6FA',
+  white: '#FFFFFF',
+  divider: '#E1E5EE',
+  successBg: '#EAF3DE',
+  successFg: '#27500A',
+  neutralBg: '#F1F5F9',
+  neutralFg: '#475569',
+  logoFrom: '#2E62EE',
+  logoTo: '#123FAC',
+  logoTint: '#A9C5FF',
+} as const;
