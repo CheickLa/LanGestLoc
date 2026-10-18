@@ -9,7 +9,10 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { ContractStatus } from '@generated/prisma/client';
 
 const mockTx = {
-  rent: { update: jest.fn(), create: jest.fn() },
+  $queryRaw: jest.fn(),
+  contract: { findUnique: jest.fn() },
+  rent: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
+  rentDue: { findFirst: jest.fn() },
 };
 
 type MockTx = typeof mockTx;
@@ -19,7 +22,6 @@ const runInTransaction = <T>(cb: (tx: MockTx) => Promise<T>) => cb(mockTx);
 const mockPrisma = {
   contract: { findUnique: jest.fn() },
   rent: { findFirst: jest.fn(), findMany: jest.fn() },
-  rentDue: { findFirst: jest.fn() },
   $transaction: jest.fn(runInTransaction),
 };
 
@@ -51,11 +53,11 @@ describe('RentsService', () => {
     const dto = { contractId: 1, amount: 600000, effectiveFrom: '2026-04-01' };
 
     it('should close old rent and create new rent', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
+      mockTx.contract.findUnique.mockResolvedValue({
         id: 1,
         status: ContractStatus.ACTIVE,
       });
-      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+      mockTx.rent.findFirst.mockResolvedValue(activeRent);
       const newRent = {
         id: 2,
         contractId: 1,
@@ -81,13 +83,34 @@ describe('RentsService', () => {
     });
 
     it('should throw NotFoundException when contract does not exist', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue(null);
+      mockTx.contract.findUnique.mockResolvedValue(null);
 
       await expect(service.create(dto)).rejects.toThrow(NotFoundException);
     });
 
+    it('verrouille le contrat avant toute lecture de la transaction', async () => {
+      mockTx.contract.findUnique.mockResolvedValue({
+        id: 1,
+        status: ContractStatus.ACTIVE,
+        endDate: null,
+      });
+      mockTx.rent.findFirst.mockResolvedValue(activeRent);
+      mockTx.rentDue.findFirst.mockResolvedValue(null);
+      mockTx.rent.create.mockResolvedValue({ id: 2 });
+
+      await service.create(dto);
+
+      expect(mockTx.$queryRaw).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.stringContaining('FOR UPDATE')]),
+        1,
+      );
+      expect(mockTx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        mockTx.contract.findUnique.mock.invocationCallOrder[0],
+      );
+    });
+
     it('should throw ConflictException when contract is not active', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
+      mockTx.contract.findUnique.mockResolvedValue({
         id: 1,
         status: ContractStatus.TERMINATED,
       });
@@ -96,21 +119,21 @@ describe('RentsService', () => {
     });
 
     it('should throw ConflictException when no active rent found', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
+      mockTx.contract.findUnique.mockResolvedValue({
         id: 1,
         status: ContractStatus.ACTIVE,
       });
-      mockPrisma.rent.findFirst.mockResolvedValue(null);
+      mockTx.rent.findFirst.mockResolvedValue(null);
 
       await expect(service.create(dto)).rejects.toThrow(ConflictException);
     });
 
     it('should throw BadRequestException when amount is the same', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
+      mockTx.contract.findUnique.mockResolvedValue({
         id: 1,
         status: ContractStatus.ACTIVE,
       });
-      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+      mockTx.rent.findFirst.mockResolvedValue(activeRent);
 
       await expect(service.create({ ...dto, amount: 500000 })).rejects.toThrow(
         BadRequestException,
@@ -118,11 +141,11 @@ describe('RentsService', () => {
     });
 
     it('should throw BadRequestException when amount is lower than the current rent', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
+      mockTx.contract.findUnique.mockResolvedValue({
         id: 1,
         status: ContractStatus.ACTIVE,
       });
-      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+      mockTx.rent.findFirst.mockResolvedValue(activeRent);
 
       await expect(service.create({ ...dto, amount: 400000 })).rejects.toThrow(
         BadRequestException,
@@ -131,11 +154,11 @@ describe('RentsService', () => {
     });
 
     it('should throw BadRequestException when effectiveFrom is before current', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
+      mockTx.contract.findUnique.mockResolvedValue({
         id: 1,
         status: ContractStatus.ACTIVE,
       });
-      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+      mockTx.rent.findFirst.mockResolvedValue(activeRent);
 
       await expect(
         service.create({ ...dto, effectiveFrom: '2025-12-01' }),
@@ -143,11 +166,11 @@ describe('RentsService', () => {
     });
 
     it('should throw BadRequestException when effectiveFrom is not the 1st of a month', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
+      mockTx.contract.findUnique.mockResolvedValue({
         id: 1,
         status: ContractStatus.ACTIVE,
       });
-      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+      mockTx.rent.findFirst.mockResolvedValue(activeRent);
 
       await expect(
         service.create({ ...dto, effectiveFrom: '2026-04-15' }),
@@ -156,20 +179,20 @@ describe('RentsService', () => {
     });
 
     it('refuse une augmentation sur un mois déjà facturé', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
+      mockTx.contract.findUnique.mockResolvedValue({
         id: 1,
         status: ContractStatus.ACTIVE,
         endDate: null,
       });
-      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
-      mockPrisma.rentDue.findFirst.mockResolvedValue({
+      mockTx.rent.findFirst.mockResolvedValue(activeRent);
+      mockTx.rentDue.findFirst.mockResolvedValue({
         month: new Date('2026-10-01'),
       });
 
       await expect(service.create(dto)).rejects.toThrow(
         "Le loyer est déjà facturé jusqu'en 2026-10",
       );
-      expect(mockPrisma.rentDue.findFirst).toHaveBeenCalledWith({
+      expect(mockTx.rentDue.findFirst).toHaveBeenCalledWith({
         where: { contractId: 1, month: { gte: new Date('2026-04-01') } },
         orderBy: { month: 'desc' },
       });
@@ -177,13 +200,13 @@ describe('RentsService', () => {
     });
 
     it('refuse une augmentation après la fin prévue du contrat', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
+      mockTx.contract.findUnique.mockResolvedValue({
         id: 1,
         status: ContractStatus.ACTIVE,
         endDate: new Date('2026-03-31'),
       });
-      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
-      mockPrisma.rentDue.findFirst.mockResolvedValue(null);
+      mockTx.rent.findFirst.mockResolvedValue(activeRent);
+      mockTx.rentDue.findFirst.mockResolvedValue(null);
 
       await expect(service.create(dto)).rejects.toThrow(
         "L'augmentation ne peut pas prendre effet après la fin prévue du contrat",
@@ -192,13 +215,13 @@ describe('RentsService', () => {
     });
 
     it('accepte une augmentation au mois de la fin prévue', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue({
+      mockTx.contract.findUnique.mockResolvedValue({
         id: 1,
         status: ContractStatus.ACTIVE,
         endDate: new Date('2026-04-30'),
       });
-      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
-      mockPrisma.rentDue.findFirst.mockResolvedValue(null);
+      mockTx.rent.findFirst.mockResolvedValue(activeRent);
+      mockTx.rentDue.findFirst.mockResolvedValue(null);
       mockTx.rent.create.mockResolvedValue({ id: 2 });
 
       await service.create(dto);

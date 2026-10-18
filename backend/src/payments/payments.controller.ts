@@ -17,9 +17,9 @@ import {
   ApiCreatedResponse,
 } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
-import { PaginationDto } from '@/common/dto/pagination.dto';
 import { ApiPaginatedResponse } from '@/common/decorators/api-paginated-response.decorator';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { FindPaymentsQueryDto } from './dto/find-payments-query.dto';
 import {
   PaymentWithLinesEntity,
   PaymentWithRelationsEntity,
@@ -36,18 +36,23 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Enregistrer un paiement (un ou plusieurs mois)' })
+  @ApiOperation({ summary: "Solder les loyers d'un contrat jusqu'à un mois" })
   @ApiCreatedResponse({
     description: 'Paiement enregistré',
-    type: PaymentWithLinesEntity,
+    type: PaymentDetailEntity,
   })
   @ApiResponse({
     status: 400,
-    description: 'Données invalides ou contrat annulé',
+    description:
+      'Données invalides, contrat non actif, date ou mois hors bornes',
   })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  @ApiResponse({ status: 404, description: 'Échéances ou contrat non trouvés' })
-  @ApiResponse({ status: 409, description: 'Échéances déjà soldées' })
+  @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
+  @ApiResponse({
+    status: 409,
+    description:
+      'Mois déjà soldés, montant différent du total, caution non versée, ou mois modifiés entre-temps',
+  })
   create(@Body() dto: CreatePaymentDto, @CurrentUser() user: { id: number }) {
     return this.paymentsService.create(dto, user.id);
   }
@@ -56,8 +61,8 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Lister tous les paiements' })
   @ApiPaginatedResponse(PaymentWithRelationsEntity)
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
-  findAll(@Query() pagination: PaginationDto) {
-    return this.paymentsService.findAll(pagination);
+  findAll(@Query() query: FindPaymentsQueryDto) {
+    return this.paymentsService.findAll(query);
   }
 
   @Get('contract/:contractId')

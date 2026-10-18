@@ -50,6 +50,14 @@ describe('RentDueService', () => {
   };
 
   describe('generate', () => {
+    beforeAll(() => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-04-20T10:00:00Z'));
+    });
+
+    afterAll(() => {
+      jest.useRealTimers();
+    });
+
     it('should create a rent due for the given contract and month', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
       mockPrisma.rentDue.findUnique.mockResolvedValue(null);
@@ -74,7 +82,25 @@ describe('RentDueService', () => {
           month: new Date(Date.UTC(2026, 3, 1)),
           amount: 500000,
           dueDate: new Date(Date.UTC(2026, 4, 5)),
+          status: RentDueStatus.PENDING,
         },
+      });
+    });
+
+    it("crée en retard l'échéance d'un mois dont la date limite est passée", async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
+      mockPrisma.rentDue.findUnique.mockResolvedValue(null);
+      mockPrisma.rent.findFirst.mockResolvedValue(activeRent);
+      mockPrisma.rentDue.create.mockResolvedValue({ id: 4 });
+
+      await service.generate({ ...dto, month: '2026-03' });
+
+      expect(mockPrisma.rentDue.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          month: new Date('2026-03-01'),
+          dueDate: new Date('2026-04-05'),
+          status: RentDueStatus.LATE,
+        }),
       });
     });
 
@@ -200,27 +226,68 @@ describe('RentDueService', () => {
     });
   });
 
-  describe('findByContract', () => {
-    it('should return rent dues filtered by status', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
-      const dues = [{ id: 1, status: RentDueStatus.PENDING }];
-      mockPrisma.rentDue.findMany.mockResolvedValue(dues);
+  describe('findPayable', () => {
+    beforeAll(() => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-10-17T10:00:00Z'));
+    });
 
-      const result = await service.findByContract(1, RentDueStatus.PENDING);
+    afterAll(() => {
+      jest.useRealTimers();
+    });
 
-      expect(result).toEqual(dues);
-      expect(mockPrisma.rentDue.findMany).toHaveBeenCalledWith({
-        where: { contractId: 1, status: RentDueStatus.PENDING },
-        orderBy: { month: 'desc' },
+    it('renvoie mois, montant et statut des mois payables, sans identifiant interne', async () => {
+      mockPrisma.contract.findUnique.mockResolvedValue({
+        ...activeContract,
+        startDate: new Date('2026-10-01'),
+        rents: [activeRent],
+        rentDues: [
+          {
+            id: 5,
+            rentId: 1,
+            month: new Date('2026-10-01'),
+            amount: 500000,
+            status: RentDueStatus.PENDING,
+          },
+        ],
+      });
+
+      const result = await service.findPayable(1);
+
+      expect(mockPrisma.contract.findUnique).toHaveBeenCalledWith({
+        where: { id: 1 },
+        include: { rents: true, rentDues: true },
+      });
+      expect(result).toHaveLength(13);
+      expect(result[0]).toEqual({
+        month: new Date('2026-10-01'),
+        amount: 500000,
+        status: 'PENDING',
+      });
+      expect(result[1]).toEqual({
+        month: new Date('2026-11-01'),
+        amount: 500000,
+        status: 'ADVANCE',
       });
     });
 
-    it('should throw NotFoundException when contract does not exist', async () => {
+    it.each([ContractStatus.TERMINATED, ContractStatus.CANCELED])(
+      'renvoie une liste vide pour un contrat %s',
+      async (status) => {
+        mockPrisma.contract.findUnique.mockResolvedValue({
+          ...activeContract,
+          status,
+          rents: [activeRent],
+          rentDues: [],
+        });
+
+        await expect(service.findPayable(1)).resolves.toEqual([]);
+      },
+    );
+
+    it('lève NotFoundException pour un contrat inconnu', async () => {
       mockPrisma.contract.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.findByContract(999, RentDueStatus.PENDING),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.findPayable(999)).rejects.toThrow(NotFoundException);
     });
   });
 

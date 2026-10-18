@@ -1,4 +1,20 @@
-import { firstOfMonth, isLastDayOfMonth, monthsBetween } from './months';
+import {
+  firstOfMonth,
+  isLastDayOfMonth,
+  monthsBetween,
+  parseMonth,
+} from './months';
+
+describe('parseMonth', () => {
+  it('donne le 1er du mois à minuit UTC', () => {
+    expect(parseMonth('2026-10')).toEqual(new Date('2026-10-01'));
+  });
+
+  it('lit décembre et janvier', () => {
+    expect(parseMonth('2026-12')).toEqual(new Date('2026-12-01'));
+    expect(parseMonth('2027-01')).toEqual(new Date('2027-01-01'));
+  });
+});
 
 describe('firstOfMonth', () => {
   it('ramène une date au 1er de son mois, à minuit UTC', () => {

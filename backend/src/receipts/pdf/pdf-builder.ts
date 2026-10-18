@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { formatAmount, groupReceiptLines } from './receipt-rows';
 
 // ── Types ──
 
@@ -71,19 +72,6 @@ const TYPE_TITLES: Record<string, string> = {
 };
 
 // ── Helpers de formatage ──
-
-function formatMonth(date: Date): string {
-  return new Date(date).toLocaleDateString('fr-FR', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-function formatAmount(n: number | { toNumber: () => number }): string {
-  const val = typeof n === 'object' ? n.toNumber() : n;
-  return val.toLocaleString('fr-FR').replace(/\s/g, ' ') + ' GNF';
-}
 
 function formatDate(date: Date | string): string {
   return new Date(date).toLocaleDateString('fr-FR');
@@ -240,14 +228,46 @@ function drawPaymentLines(
     y += 22;
     divider(doc, y - 4, 0.3);
   } else {
-    for (const pl of lines) {
+    const rows = groupReceiptLines(
+      lines.map(({ rentDue }) => ({
+        month: rentDue.month,
+        amount:
+          typeof rentDue.amount === 'object'
+            ? rentDue.amount.toNumber()
+            : rentDue.amount,
+      })),
+    );
+    for (const row of rows) {
       doc.font(FONT.regular).fontSize(11).fillColor(COLOR.black);
-      doc.text(formatMonth(pl.rentDue.month), MARGIN, y);
-      doc.text(formatAmount(pl.rentDue.amount), 0, y, {
+      doc.text(row.from, MARGIN, y);
+      doc.text(formatAmount(row.total), 0, y, {
         align: 'right',
         width: PAGE_W - MARGIN,
       });
-      y += 22;
+      if (row.to) {
+        const fromW = doc.widthOfString(row.from);
+        const x0 = MARGIN + fromW + 6;
+        const ay = y + 6;
+        doc
+          .moveTo(x0, ay)
+          .lineTo(x0 + 12, ay)
+          .moveTo(x0 + 8, ay - 3)
+          .lineTo(x0 + 12, ay)
+          .lineTo(x0 + 8, ay + 3)
+          .strokeColor(COLOR.gray600)
+          .lineWidth(0.8)
+          .stroke();
+        doc.fillColor(COLOR.black).text(row.to, x0 + 12 + 6, y);
+      }
+      if (row.detail) {
+        doc
+          .font(FONT.regular)
+          .fontSize(9)
+          .fillColor(COLOR.gray400)
+          .text(row.detail, MARGIN, y + 14);
+      }
+      const rowH = row.detail ? 34 : 22;
+      y += rowH;
       divider(doc, y - 4, 0.3);
     }
   }

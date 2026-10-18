@@ -1,12 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RentDueController } from './rent-due.controller';
 import { RentDueService } from './rent-due.service';
-import { RentDueStatus } from '@generated/prisma/client';
 
 const mockRentDueService = {
   generate: jest.fn(),
   findAllByContract: jest.fn(),
-  findByContract: jest.fn(),
+  findPayable: jest.fn(),
   generateForAllActiveContracts: jest.fn(),
   markOverdueAsLate: jest.fn(),
 };
@@ -47,19 +46,17 @@ describe('RentDueController', () => {
     });
   });
 
-  describe('GET /rent-dues/contract/:contractId/pending', () => {
-    it('should return pending rent dues', async () => {
-      mockRentDueService.findByContract.mockResolvedValue([
-        { id: 1, status: 'PENDING' },
-      ]);
+  describe('GET /rent-dues/contract/:contractId/payable', () => {
+    it('renvoie les mois payables du contrat', async () => {
+      const months = [
+        { month: new Date('2026-11-01'), amount: 1500000, status: 'ADVANCE' },
+      ];
+      mockRentDueService.findPayable.mockResolvedValue(months);
 
-      const result = await controller.findPendingByContract(1);
+      const result = await controller.findPayable(1);
 
-      expect(mockRentDueService.findByContract).toHaveBeenCalledWith(
-        1,
-        RentDueStatus.PENDING,
-      );
-      expect(result).toEqual([{ id: 1, status: 'PENDING' }]);
+      expect(mockRentDueService.findPayable).toHaveBeenCalledWith(1);
+      expect(result).toEqual(months);
     });
   });
 

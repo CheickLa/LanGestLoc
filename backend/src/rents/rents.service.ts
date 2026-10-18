@@ -17,67 +17,75 @@ export class RentsService {
     const { contractId, amount, effectiveFrom } = dto;
     const newEffectiveFrom = new Date(effectiveFrom);
 
-    const contract = await this.prisma.contract.findUnique({
-      where: { id: contractId },
-    });
-    if (!contract)
-      throw new NotFoundException(`Contrat #${contractId} non trouvé`);
-    if (contract.status !== ContractStatus.ACTIVE)
-      throw new ConflictException(`Le contrat #${contractId} n'est pas actif`);
-
-    // Trouver le loyer actif (effectiveTo = null)
-    const activeRent = await this.prisma.rent.findFirst({
-      where: { contractId, effectiveTo: null },
-    });
-    if (!activeRent)
-      throw new ConflictException(
-        `Aucun loyer actif trouvé sur le contrat #${contractId}`,
-      );
-
-    // Une augmentation : le nouveau montant doit être strictement supérieur à l'actuel
-    if (amount <= activeRent.amount) {
-      throw new BadRequestException(
-        `Le nouveau loyer (${amount}) doit être supérieur au loyer actuel (${activeRent.amount})`,
-      );
-    }
-
-    // La facturation est mensuelle : une augmentation prend effet au 1er d'un mois,
-    // pour qu'une échéance (toujours datée au 1er) corresponde à un seul loyer.
-    if (newEffectiveFrom.getUTCDate() !== 1) {
-      throw new BadRequestException(
-        "La date d'entrée en vigueur doit être le 1er d'un mois",
-      );
-    }
-
-    // La date d'entrée en vigueur doit être strictement après effectiveFrom de l'actuel
-    if (newEffectiveFrom <= activeRent.effectiveFrom) {
-      throw new BadRequestException(
-        `La date d'entrée en vigueur doit être après le ${activeRent.effectiveFrom.toISOString().split('T')[0]}`,
-      );
-    }
-
-    if (contract.endDate && newEffectiveFrom > firstOfMonth(contract.endDate)) {
-      throw new BadRequestException(
-        "L'augmentation ne peut pas prendre effet après la fin prévue du contrat",
-      );
-    }
-
-    // Le montant d'une échéance est figé : une augmentation ne vise que des mois pas encore facturés.
-    const lastBilled = await this.prisma.rentDue.findFirst({
-      where: { contractId, month: { gte: newEffectiveFrom } },
-      orderBy: { month: 'desc' },
-    });
-    if (lastBilled) {
-      throw new ConflictException(
-        `Le loyer est déjà facturé jusqu'en ${lastBilled.month.toISOString().slice(0, 7)} : l'augmentation doit prendre effet après ce mois`,
-      );
-    }
-
-    // effectiveTo de l'ancien = veille du nouveau effectiveFrom
-    const effectiveTo = new Date(newEffectiveFrom);
-    effectiveTo.setUTCDate(effectiveTo.getUTCDate() - 1);
-
     return this.prisma.$transaction(async (tx) => {
+      // Aucun paiement ne doit se glisser entre les contrôles et l'écriture
+      await tx.$queryRaw`SELECT id FROM "Contract" WHERE id = ${contractId} FOR UPDATE`;
+
+      const contract = await tx.contract.findUnique({
+        where: { id: contractId },
+      });
+      if (!contract)
+        throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+      if (contract.status !== ContractStatus.ACTIVE)
+        throw new ConflictException(
+          `Le contrat #${contractId} n'est pas actif`,
+        );
+
+      // Trouver le loyer actif (effectiveTo = null)
+      const activeRent = await tx.rent.findFirst({
+        where: { contractId, effectiveTo: null },
+      });
+      if (!activeRent)
+        throw new ConflictException(
+          `Aucun loyer actif trouvé sur le contrat #${contractId}`,
+        );
+
+      // Une augmentation : le nouveau montant doit être strictement supérieur à l'actuel
+      if (amount <= activeRent.amount) {
+        throw new BadRequestException(
+          `Le nouveau loyer (${amount}) doit être supérieur au loyer actuel (${activeRent.amount})`,
+        );
+      }
+
+      // La facturation est mensuelle : une augmentation prend effet au 1er d'un mois,
+      // pour qu'une échéance (toujours datée au 1er) corresponde à un seul loyer.
+      if (newEffectiveFrom.getUTCDate() !== 1) {
+        throw new BadRequestException(
+          "La date d'entrée en vigueur doit être le 1er d'un mois",
+        );
+      }
+
+      // La date d'entrée en vigueur doit être strictement après effectiveFrom de l'actuel
+      if (newEffectiveFrom <= activeRent.effectiveFrom) {
+        throw new BadRequestException(
+          `La date d'entrée en vigueur doit être après le ${activeRent.effectiveFrom.toISOString().split('T')[0]}`,
+        );
+      }
+
+      if (
+        contract.endDate &&
+        newEffectiveFrom > firstOfMonth(contract.endDate)
+      ) {
+        throw new BadRequestException(
+          "L'augmentation ne peut pas prendre effet après la fin prévue du contrat",
+        );
+      }
+
+      // Le montant d'une échéance est figé : une augmentation ne vise que des mois pas encore facturés.
+      const lastBilled = await tx.rentDue.findFirst({
+        where: { contractId, month: { gte: newEffectiveFrom } },
+        orderBy: { month: 'desc' },
+      });
+      if (lastBilled) {
+        throw new ConflictException(
+          `Le loyer est déjà facturé jusqu'en ${lastBilled.month.toISOString().slice(0, 7)} : l'augmentation doit prendre effet après ce mois`,
+        );
+      }
+
+      // effectiveTo de l'ancien = veille du nouveau effectiveFrom
+      const effectiveTo = new Date(newEffectiveFrom);
+      effectiveTo.setUTCDate(effectiveTo.getUTCDate() - 1);
+
       // Clôturer l'ancien loyer
       await tx.rent.update({
         where: { id: activeRent.id },

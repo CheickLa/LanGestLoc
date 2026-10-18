@@ -7,6 +7,8 @@ import {
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ReceiptsService } from '@/receipts/receipts.service';
+import { dueDateOf } from '@/rent-due/due-date';
+import { MAX_ADVANCE_MONTHS } from '@/rent-due/payable-months';
 import {
   ContractStatus,
   DepositStatus,
@@ -17,10 +19,11 @@ import {
 } from '@generated/prisma/client';
 
 const mockTx = {
+  $queryRaw: jest.fn(),
+  contract: { findUnique: jest.fn() },
   rentDue: {
+    createManyAndReturn: jest.fn(),
     updateMany: jest.fn(),
-    update: jest.fn(),
-    findMany: jest.fn(),
     count: jest.fn(),
   },
   payment: { create: jest.fn() },
@@ -28,7 +31,6 @@ const mockTx = {
 };
 
 const mockPrisma = {
-  rentDue: { findMany: jest.fn() },
   contract: { findUnique: jest.fn() },
   payment: { findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
   $transaction: jest.fn(
@@ -45,7 +47,7 @@ describe('PaymentsService', () => {
   let service: PaymentsService;
 
   beforeAll(() => {
-    jest.useFakeTimers().setSystemTime(new Date('2027-06-15'));
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-17T10:00:00Z'));
   });
 
   afterAll(() => {
@@ -68,158 +70,340 @@ describe('PaymentsService', () => {
     );
   });
 
-  const dto = {
-    rentDueIds: [1, 2],
-    paymentDate: '2026-04-01',
-    paymentMethod: PaymentMethod.CASH,
+  const RENT = 1500000;
+  const rent = {
+    id: 7,
+    amount: RENT,
+    effectiveFrom: new Date('2026-01-01'),
+    effectiveTo: null,
   };
-
-  const rentDues = [
-    { id: 1, contractId: 1, amount: 500000, status: RentDueStatus.PENDING },
-    { id: 2, contractId: 1, amount: 500000, status: RentDueStatus.LATE },
+  const due = (id: number, month: string, status: RentDueStatus) => ({
+    id,
+    contractId: 1,
+    rentId: 7,
+    month: new Date(`${month}-01`),
+    amount: RENT,
+    dueDate: dueDateOf(new Date(`${month}-01`)),
+    status,
+  });
+  const paidUntilJuly = ['01', '02', '03', '04', '05', '06', '07'].map((m, i) =>
+    due(i + 1, `2026-${m}`, RentDueStatus.PAID),
+  );
+  const augToOct = [
+    due(8, '2026-08', RentDueStatus.LATE),
+    due(9, '2026-09', RentDueStatus.LATE),
+    due(10, '2026-10', RentDueStatus.PENDING),
   ];
-
-  const activeContract = {
+  const depositHeld = (date: string) => ({
+    id: 50,
+    type: PaymentType.DEPOSIT_HELD,
+    paymentDate: new Date(date),
+  });
+  const contract = (overrides: object = {}) => ({
     id: 1,
     status: ContractStatus.ACTIVE,
     startDate: new Date('2026-01-01'),
+    endDate: null,
+    rents: [rent],
+    rentDues: [...paidUntilJuly, ...augToOct],
+    payments: [depositHeld('2026-01-02')],
+    ...overrides,
+  });
+  const notStarted = (overrides: object = {}) =>
+    contract({
+      startDate: new Date('2026-12-01'),
+      rents: [{ ...rent, effectiveFrom: new Date('2026-12-01') }],
+      rentDues: [],
+      payments: [depositHeld('2026-10-10')],
+      ...overrides,
+    });
+  const pay = (untilMonth: string, amount: number, overrides: object = {}) =>
+    service.create(
+      {
+        contractId: 1,
+        untilMonth,
+        amount,
+        paymentDate: '2026-10-17',
+        paymentMethod: PaymentMethod.CASH,
+        ...overrides,
+      },
+      1,
+    );
+  const detail = {
+    id: 99,
+    amount: RENT,
+    receipt: { id: 3, receiptNo: 'REC-2026-00001' },
   };
+  const paidIds = () =>
+    (
+      mockTx.payment.create.mock.calls[0] as [
+        { data: { paymentLines: { create: { rentDueId: number }[] } } },
+      ]
+    )[0].data.paymentLines.create.map((l) => l.rentDueId);
+  const createdDue = (month: string) => ({
+    contractId: 1,
+    rentId: 7,
+    month: new Date(`${month}-01`),
+    amount: RENT,
+    dueDate: dueDateOf(new Date(`${month}-01`)),
+    status: RentDueStatus.PAID,
+  });
 
   describe('create', () => {
-    it('should create a payment, update rent dues, and generate receipt', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
-      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
-      const payment = { id: 1, amount: 1000000, paymentLines: [] };
-      mockTx.payment.create.mockResolvedValue(payment);
+    beforeEach(() => {
+      mockTx.contract.findUnique.mockResolvedValue(contract());
+      mockTx.rentDue.createManyAndReturn.mockImplementation(
+        ({ data }: { data: object[] }) =>
+          Promise.resolve(data.map((d, i) => ({ id: 100 + i, ...d }))),
+      );
+      mockTx.payment.create.mockResolvedValue({ id: 99 });
+      mockPrisma.payment.findUnique.mockResolvedValue(detail);
       mockReceiptsService.generate.mockResolvedValue({});
+    });
 
-      const result = await service.create(dto, 1);
+    it("solde août seul jusqu'à 2026-08", async () => {
+      await pay('2026-08', RENT);
 
-      expect(result).toEqual(payment);
+      expect(mockTx.contract.findUnique).toHaveBeenCalledWith({
+        where: { id: 1 },
+        include: {
+          rents: true,
+          rentDues: true,
+          payments: { where: { type: PaymentType.DEPOSIT_HELD } },
+        },
+      });
       expect(mockTx.rentDue.updateMany).toHaveBeenCalledWith({
-        where: { id: { in: [1, 2] } },
+        where: { id: { in: [8] } },
         data: { status: RentDueStatus.PAID },
       });
+      expect(mockTx.rentDue.createManyAndReturn).not.toHaveBeenCalled();
       expect(mockTx.payment.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+        data: {
           contractId: 1,
-          amount: 1000000,
+          type: PaymentType.RENT,
+          amount: RENT,
+          paymentDate: new Date('2026-10-17'),
+          paymentMethod: PaymentMethod.CASH,
           createdById: 1,
-        }),
-        include: expect.any(Object),
-      });
-      expect(mockReceiptsService.generate).toHaveBeenCalledWith(1);
-    });
-
-    it('should deduplicate rentDueIds', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue([rentDues[0]]);
-      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
-      mockTx.payment.create.mockResolvedValue({ id: 1, paymentLines: [] });
-
-      await service.create({ ...dto, rentDueIds: [1, 1, 1] }, 1);
-
-      expect(mockPrisma.rentDue.findMany).toHaveBeenCalledWith({
-        where: { id: { in: [1] } },
-      });
-    });
-
-    it('should throw NotFoundException when some rent dues do not exist', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue([rentDues[0]]);
-
-      await expect(service.create(dto, 1)).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw BadRequestException when rent dues belong to different contracts', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue([
-        { ...rentDues[0], contractId: 1 },
-        { ...rentDues[1], contractId: 2 },
-      ]);
-
-      await expect(service.create(dto, 1)).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw NotFoundException when contract does not exist', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
-      mockPrisma.contract.findUnique.mockResolvedValue(null);
-
-      await expect(service.create(dto, 1)).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw BadRequestException when contract is canceled', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
-      mockPrisma.contract.findUnique.mockResolvedValue({
-        id: 1,
-        status: ContractStatus.CANCELED,
-        startDate: new Date('2026-01-01'),
-      });
-
-      await expect(service.create(dto, 1)).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw BadRequestException when contract is terminated', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
-      mockPrisma.contract.findUnique.mockResolvedValue({
-        id: 1,
-        status: ContractStatus.TERMINATED,
-        startDate: new Date('2026-01-01'),
-      });
-
-      await expect(service.create(dto, 1)).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw BadRequestException when paymentDate is in the future', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
-      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
-
-      await expect(
-        service.create({ ...dto, paymentDate: '2030-01-01' }, 1),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw BadRequestException when paymentDate is before contract start', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
-      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
-
-      await expect(
-        service.create({ ...dto, paymentDate: '2025-12-01' }, 1),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw ConflictException when rent dues are already paid', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue([
-        { ...rentDues[0], status: RentDueStatus.PAID },
-        rentDues[1],
-      ]);
-      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
-
-      await expect(service.create(dto, 1)).rejects.toThrow(ConflictException);
-    });
-
-    it('should throw ConflictException on Prisma P2002 (concurrent payment)', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
-      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
-      const prismaError = new Prisma.PrismaClientKnownRequestError(
-        'Unique constraint',
-        {
-          code: 'P2002',
-          clientVersion: '5.0.0',
+          paymentLines: { create: [{ rentDueId: 8 }] },
         },
-      );
-      mockPrisma.$transaction.mockRejectedValue(prismaError);
-
-      await expect(service.create(dto, 1)).rejects.toThrow(ConflictException);
+      });
     });
 
-    it('should not fail payment if receipt generation fails', async () => {
-      mockPrisma.rentDue.findMany.mockResolvedValue(rentDues);
-      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
-      const payment = { id: 1, amount: 1000000, paymentLines: [] };
-      mockTx.payment.create.mockResolvedValue(payment);
+    it('verrouille le contrat avant toute lecture de la transaction', async () => {
+      await pay('2026-08', RENT);
+
+      expect(mockTx.$queryRaw).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.stringContaining('FOR UPDATE')]),
+        1,
+      );
+      expect(mockTx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        mockTx.contract.findUnique.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("solde août → octobre en trois lignes, dans l'ordre", async () => {
+      await pay('2026-10', 3 * RENT);
+
+      expect(paidIds()).toEqual([8, 9, 10]);
+      expect(mockTx.payment.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ amount: 3 * RENT }),
+      });
+    });
+
+    it("crée PAID novembre et décembre jusqu'à 2026-12", async () => {
+      await pay('2026-12', 5 * RENT);
+
+      expect(mockTx.rentDue.createManyAndReturn).toHaveBeenCalledWith({
+        data: [createdDue('2026-11'), createdDue('2026-12')],
+      });
+      expect(paidIds()).toEqual([8, 9, 10, 100, 101]);
+    });
+
+    it('accepte la limite, 2027-10', async () => {
+      await pay('2027-10', 15 * RENT);
+
+      expect(paidIds()).toHaveLength(15);
+    });
+
+    it('refuse 2027-11, après la limite', async () => {
+      await expect(pay('2027-11', 16 * RENT)).rejects.toThrow(
+        `Le paiement à l'avance est limité à ${MAX_ADVANCE_MONTHS} mois après le mois en cours`,
+      );
+      expect(mockTx.payment.create).not.toHaveBeenCalled();
+    });
+
+    it('refuse 2025-12, avant le début', async () => {
+      await expect(pay('2025-12', RENT)).rejects.toThrow(
+        'Le mois 2025-12 est avant le début du contrat',
+      );
+    });
+
+    it('refuse 2026-07, déjà soldé', async () => {
+      const result = pay('2026-07', RENT);
+
+      await expect(result).rejects.toThrow(ConflictException);
+      await expect(result).rejects.toThrow(
+        "Les loyers sont déjà soldés jusqu'à 2026-07",
+      );
+    });
+
+    it('refuse un montant différent de la somme, sans rien enregistrer', async () => {
+      await expect(pay('2026-10', 3 * RENT - 1)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(mockTx.rentDue.createManyAndReturn).not.toHaveBeenCalled();
+      expect(mockTx.rentDue.updateMany).not.toHaveBeenCalled();
+      expect(mockTx.payment.create).not.toHaveBeenCalled();
+    });
+
+    it("deux paiements simultanés : la violation d'unicité donne 409", async () => {
+      mockPrisma.$transaction.mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+          code: 'P2002',
+          clientVersion: '7.4.2',
+        }),
+      );
+
+      await expect(pay('2026-08', RENT)).rejects.toThrow(
+        "Les mois à payer viennent d'être modifiés : recommencer.",
+      );
+    });
+
+    it("passe l'année : payé jusqu'à novembre, puis jusqu'à 2027-01", async () => {
+      mockTx.contract.findUnique.mockResolvedValue(
+        contract({
+          rentDues: [
+            ...paidUntilJuly,
+            due(8, '2026-08', RentDueStatus.PAID),
+            due(9, '2026-09', RentDueStatus.PAID),
+            due(10, '2026-10', RentDueStatus.PAID),
+            due(11, '2026-11', RentDueStatus.PAID),
+          ],
+        }),
+      );
+
+      await pay('2027-01', 2 * RENT);
+
+      expect(mockTx.rentDue.createManyAndReturn).toHaveBeenCalledWith({
+        data: [createdDue('2026-12'), createdDue('2027-01')],
+      });
+    });
+
+    it('refuse 2027-01 pour un contrat qui finit en 12/2026', async () => {
+      mockTx.contract.findUnique.mockResolvedValue(
+        contract({ endDate: new Date('2026-12-31') }),
+      );
+
+      await expect(pay('2027-01', RENT)).rejects.toThrow(
+        'Le mois 2027-01 est après la fin du contrat',
+      );
+    });
+
+    it("paie à l'avance un contrat pas commencé, daté après la caution", async () => {
+      mockTx.contract.findUnique.mockResolvedValue(notStarted());
+
+      await pay('2026-12', RENT);
+
+      expect(mockTx.rentDue.createManyAndReturn).toHaveBeenCalledWith({
+        data: [createdDue('2026-12')],
+      });
+    });
+
+    it('refuse une date avant le versement de la caution', async () => {
+      mockTx.contract.findUnique.mockResolvedValue(notStarted());
+
+      await expect(
+        pay('2026-12', RENT, { paymentDate: '2026-10-09' }),
+      ).rejects.toThrow(
+        'La date de paiement ne peut pas être antérieure au versement de la caution',
+      );
+    });
+
+    it('accepte une date égale au versement de la caution', async () => {
+      mockTx.contract.findUnique.mockResolvedValue(notStarted());
+
+      await expect(
+        pay('2026-12', RENT, { paymentDate: '2026-10-10' }),
+      ).resolves.toEqual(detail);
+    });
+
+    it('refuse une date de demain', async () => {
+      await expect(
+        pay('2026-08', RENT, { paymentDate: '2026-10-18' }),
+      ).rejects.toThrow('La date de paiement ne peut pas être dans le futur');
+    });
+
+    it.each([ContractStatus.TERMINATED, ContractStatus.CANCELED])(
+      'refuse un contrat %s',
+      async (status) => {
+        mockTx.contract.findUnique.mockResolvedValue(contract({ status }));
+
+        await expect(pay('2026-08', RENT)).rejects.toThrow(BadRequestException);
+      },
+    );
+
+    it('lève NotFoundException pour un contrat inconnu', async () => {
+      mockTx.contract.findUnique.mockResolvedValue(null);
+
+      await expect(pay('2026-08', RENT)).rejects.toThrow(NotFoundException);
+    });
+
+    it('refuse un contrat sans versement de caution', async () => {
+      mockTx.contract.findUnique.mockResolvedValue(contract({ payments: [] }));
+
+      await expect(pay('2026-08', RENT)).rejects.toThrow(
+        "Le contrat #1 n'a pas de versement de caution",
+      );
+    });
+
+    it('solde une échéance future générée à la main sans la recréer', async () => {
+      mockTx.contract.findUnique.mockResolvedValue(
+        contract({
+          rentDues: [
+            ...paidUntilJuly,
+            ...augToOct,
+            due(11, '2026-11', RentDueStatus.PENDING),
+          ],
+        }),
+      );
+
+      await pay('2026-11', 4 * RENT);
+
+      expect(mockTx.rentDue.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: [8, 9, 10, 11] } },
+        data: { status: RentDueStatus.PAID },
+      });
+      expect(mockTx.rentDue.createManyAndReturn).not.toHaveBeenCalled();
+    });
+
+    it('renvoie le détail du paiement, reçu compris, lu après sa génération', async () => {
+      await expect(pay('2026-08', RENT)).resolves.toEqual(detail);
+
+      expect(mockReceiptsService.generate).toHaveBeenCalledWith(99);
+      expect(mockPrisma.payment.findUnique).toHaveBeenCalledWith({
+        where: { id: 99 },
+        include: {
+          paymentLines: { include: { rentDue: true } },
+          contract: { include: { tenant: true, local: true } },
+          receipt: true,
+        },
+      });
+      expect(
+        mockReceiptsService.generate.mock.invocationCallOrder[0],
+      ).toBeLessThan(mockPrisma.payment.findUnique.mock.invocationCallOrder[0]);
+    });
+
+    it('renvoie receipt à null si la génération échoue', async () => {
       mockReceiptsService.generate.mockRejectedValue(new Error('S3 down'));
+      mockPrisma.payment.findUnique.mockResolvedValue({
+        ...detail,
+        receipt: null,
+      });
 
-      const result = await service.create(dto, 1);
-
-      expect(result).toEqual(payment);
+      await expect(pay('2026-08', RENT)).resolves.toEqual(
+        expect.objectContaining({ receipt: null }),
+      );
     });
   });
 
@@ -233,26 +417,53 @@ describe('PaymentsService', () => {
 
       expect(result).toEqual({ items: payments, total: 1, skip: 0, take: 20 });
       expect(mockPrisma.payment.findMany).toHaveBeenCalledWith({
+        where: {},
         skip: 0,
         take: 20,
         include: {
           paymentLines: { include: { rentDue: true } },
           contract: { include: { tenant: true, local: true } },
         },
-        orderBy: { paymentDate: 'desc' },
+        orderBy: [{ paymentDate: 'desc' }, { id: 'desc' }],
       });
+      expect(mockPrisma.payment.count).toHaveBeenCalledWith({ where: {} });
+    });
+
+    it('filtre par nom de local ou de locataire, insensible à la casse', async () => {
+      mockPrisma.payment.findMany.mockResolvedValue([]);
+      mockPrisma.payment.count.mockResolvedValue(0);
+
+      await service.findAll({ skip: 0, take: 20, search: 'diallo' });
+
+      const where = {
+        contract: {
+          OR: [
+            { local: { name: { contains: 'diallo', mode: 'insensitive' } } },
+            { tenant: { name: { contains: 'diallo', mode: 'insensitive' } } },
+          ],
+        },
+      };
+      expect(mockPrisma.payment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where }),
+      );
+      expect(mockPrisma.payment.count).toHaveBeenCalledWith({ where });
     });
   });
 
   describe('findAllByContract', () => {
     it('should return payments for a contract', async () => {
-      mockPrisma.contract.findUnique.mockResolvedValue(activeContract);
+      mockPrisma.contract.findUnique.mockResolvedValue(contract());
       const payments = [{ id: 1 }];
       mockPrisma.payment.findMany.mockResolvedValue(payments);
 
       const result = await service.findAllByContract(1);
 
       expect(result).toEqual(payments);
+      expect(mockPrisma.payment.findMany).toHaveBeenCalledWith({
+        where: { contractId: 1 },
+        include: { paymentLines: { include: { rentDue: true } } },
+        orderBy: [{ paymentDate: 'desc' }, { id: 'desc' }],
+      });
     });
 
     it('should throw NotFoundException when contract does not exist', async () => {
