@@ -134,16 +134,16 @@ Toujours combiné à `tabular-nums` dans les cellules de tableau et les KPI.
 
 ## Parcours paiement
 
-Écran d'enregistrement d'un paiement (`Dialog` desktop / `Sheet` mobile), **toujours scopé à un seul contrat**.
+Écran d'enregistrement d'un paiement (`Dialog`, sur mobile aussi, comme les autres formulaires), **toujours scopé à un seul contrat** : « Nouveau paiement » dans la liste (contrat choisi dans un Combobox) ou « Paiement » sur la fiche contrat (contrat fixé).
 
 - **Sélection par plage, pas à la carte.** Un seul contrôle : « Solder jusqu'à [mois] » (sélecteur de mois cible). La liste se remplit automatiquement de la **plus ancienne échéance due** jusqu'au mois choisi, de façon **contiguë**. Pas de cases à cocher.
-- **Jamais de trou.** Règlement chronologique strict : impossible de payer un mois en sautant un arriéré plus ancien. À enforcer **aussi côté backend** (rejet 400), pas seulement dans l'UI.
-- **Défaut = mois courant** → la liste ne montre que les échéances dues. Avancer le sélecteur ajoute des mois marqués **« À l'avance »** (badge neutre — ce n'est pas un statut de dette).
+- **Jamais de trou.** Règlement chronologique strict : impossible de payer un mois en sautant un arriéré plus ancien. Garanti par l'API : `POST /payments` reçoit un mois cible (`untilMonth`) et solde tout ce qui le précède.
+- **Défaut = dernier mois dû** (le dernier qui n'est pas à l'avance). Si rien n'est dû, aucun mois n'est choisi et une note le dit. Les mois suivants sont marqués **« À l'avance »** (badge neutre, ce n'est pas un statut de dette).
 - **Paiement à l'avance = génération à la demande.** Les `RentDue` futures n'existent pas encore (cron mensuel) : on les génère dans la transaction de paiement, chacune au montant du `Rent` effectif pour son mois (SCD), puis on les solde. Le `@@unique([contractId, month])` empêche le cron de les recréer.
 - **Total exact, verrouillé.** Aucun champ « montant » saisissable : le total est la somme des mois couverts (cadenas + note). Le bouton de confirmation porte le total → applique « paiement partiel interdit ».
-- **Borné par la fin du contrat** : le sélecteur ne propose pas de mois au-delà de `endDate` (sinon plafond ~12 mois).
-- **Méthode** : `CASH` / `ORANGE_MONEY` / `MOBILE_MONEY` (contrôle segmenté). **Date** = `paymentDate`.
-- **Après confirmation** : transaction (Payment + PaymentLine + `RentDue` → PAID + Receipt), puis état succès avec **téléchargement du reçu** (PDF S3).
+- **Borné** : jusqu'à 12 mois après le mois en cours, sans dépasser la fin du contrat. Les mois et montants viennent de `GET /rent-dues/contract/:id/payable`.
+- **Méthode** : select natif (`CASH` / `ORANGE_MONEY` / `MOBILE_MONEY`), Espèces par défaut. **Date** = `paymentDate`, aujourd'hui par défaut, jamais dans le futur ni avant le versement de la caution.
+- **Après confirmation** : transaction (Payment + PaymentLine + `RentDue` → PAID + Receipt), puis récapitulatif avec « Ouvrir le reçu », ou « Le reçu n'a pas pu être généré. ».
 - **Hors scope ici** : la caution (`DEPOSIT_HELD` / `DEPOSIT_REFUND`), gérée à la création / résiliation du contrat.
 
 ## À coller dans `globals.css`

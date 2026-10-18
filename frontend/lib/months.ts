@@ -48,3 +48,17 @@ export function lastDayOf(ym: string): string {
   const [y, m] = ym.split("-").map(Number);
   return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
 }
+
+/** ["2026-08", "2026-10"] → "août → octobre 2026 (2 mois)" ; un seul mois → "octobre 2026". */
+export function periodLabel(months: string[]): string {
+  const sorted = [...months].sort();
+  if (sorted.length === 0) return "";
+  if (sorted.length === 1) return monthLabel(sorted[0]);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const from =
+    first.slice(0, 4) === last.slice(0, 4)
+      ? monthLabel(first).replace(/ \d{4}$/, "")
+      : monthLabel(first);
+  return `${from} → ${monthLabel(last)} (${sorted.length} mois)`;
+}

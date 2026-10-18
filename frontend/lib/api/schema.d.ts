@@ -225,7 +225,7 @@ export interface paths {
         /** Lister tous les paiements */
         get: operations["PaymentsController_findAll"];
         put?: never;
-        /** Enregistrer un paiement (un ou plusieurs mois) */
+        /** Solder les loyers d'un contrat jusqu'à un mois */
         post: operations["PaymentsController_create"];
         delete?: never;
         options?: never;
@@ -386,15 +386,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/rent-dues/contract/{contractId}/pending": {
+    "/rent-dues/contract/{contractId}/payable": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Lister les échéances PENDING d'un contrat */
-        get: operations["RentDueController_findPendingByContract"];
+        /** Mois payables d'un contrat, du plus ancien dû à la limite de l'avance */
+        get: operations["RentDueController_findPayable"];
         put?: never;
         post?: never;
         delete?: never;
@@ -960,14 +960,20 @@ export interface components {
         };
         CreatePaymentDto: {
             /**
-             * @description IDs des échéances à solder (un ou plusieurs mois)
-             * @example [
-             *       1,
-             *       2,
-             *       3
-             *     ]
+             * @description ID du contrat à payer
+             * @example 1
              */
-            rentDueIds: number[];
+            contractId: number;
+            /**
+             * @description Mois jusqu'auquel solder les loyers, inclus (format YYYY-MM)
+             * @example 2026-10
+             */
+            untilMonth: string;
+            /**
+             * @description Total affiché, comparé par l'API à la somme des mois
+             * @example 4500000
+             */
+            amount: number;
             /**
              * @description Date effective du paiement
              * @example 2026-03-28
@@ -1024,37 +1030,6 @@ export interface components {
             rentDueId: number;
             rentDue: components["schemas"]["RentDueEntity"];
         };
-        PaymentWithLinesEntity: {
-            /** @example 1 */
-            id: number;
-            /** @example 1 */
-            contractId: number;
-            /**
-             * @example RENT
-             * @enum {string}
-             */
-            type: "RENT" | "DEPOSIT_HELD" | "DEPOSIT_REFUND";
-            /** @example 150000 */
-            amount: number;
-            /**
-             * Format: date-time
-             * @example 2026-01-03T00:00:00.000Z
-             */
-            paymentDate: string;
-            /**
-             * @example CASH
-             * @enum {string}
-             */
-            paymentMethod: "CASH" | "ORANGE_MONEY" | "MOBILE_MONEY";
-            /** @example 1 */
-            createdById: number;
-            /**
-             * Format: date-time
-             * @example 2026-01-15T10:30:00.000Z
-             */
-            createdAt: string;
-            paymentLines: components["schemas"]["PaymentLineEntity"][];
-        };
         ContractWithPartiesEntity: {
             /** @example 1 */
             id: number;
@@ -1091,38 +1066,6 @@ export interface components {
             updatedAt: string;
             local: components["schemas"]["LocalEntity"];
             tenant: components["schemas"]["TenantEntity"];
-        };
-        PaymentWithRelationsEntity: {
-            /** @example 1 */
-            id: number;
-            /** @example 1 */
-            contractId: number;
-            /**
-             * @example RENT
-             * @enum {string}
-             */
-            type: "RENT" | "DEPOSIT_HELD" | "DEPOSIT_REFUND";
-            /** @example 150000 */
-            amount: number;
-            /**
-             * Format: date-time
-             * @example 2026-01-03T00:00:00.000Z
-             */
-            paymentDate: string;
-            /**
-             * @example CASH
-             * @enum {string}
-             */
-            paymentMethod: "CASH" | "ORANGE_MONEY" | "MOBILE_MONEY";
-            /** @example 1 */
-            createdById: number;
-            /**
-             * Format: date-time
-             * @example 2026-01-15T10:30:00.000Z
-             */
-            createdAt: string;
-            paymentLines: components["schemas"]["PaymentLineEntity"][];
-            contract: components["schemas"]["ContractWithPartiesEntity"];
         };
         ReceiptEntity: {
             /** @example 1 */
@@ -1175,6 +1118,69 @@ export interface components {
             contract: components["schemas"]["ContractWithPartiesEntity"];
             receipt: components["schemas"]["ReceiptEntity"] | null;
         };
+        PaymentWithRelationsEntity: {
+            /** @example 1 */
+            id: number;
+            /** @example 1 */
+            contractId: number;
+            /**
+             * @example RENT
+             * @enum {string}
+             */
+            type: "RENT" | "DEPOSIT_HELD" | "DEPOSIT_REFUND";
+            /** @example 150000 */
+            amount: number;
+            /**
+             * Format: date-time
+             * @example 2026-01-03T00:00:00.000Z
+             */
+            paymentDate: string;
+            /**
+             * @example CASH
+             * @enum {string}
+             */
+            paymentMethod: "CASH" | "ORANGE_MONEY" | "MOBILE_MONEY";
+            /** @example 1 */
+            createdById: number;
+            /**
+             * Format: date-time
+             * @example 2026-01-15T10:30:00.000Z
+             */
+            createdAt: string;
+            paymentLines: components["schemas"]["PaymentLineEntity"][];
+            contract: components["schemas"]["ContractWithPartiesEntity"];
+        };
+        PaymentWithLinesEntity: {
+            /** @example 1 */
+            id: number;
+            /** @example 1 */
+            contractId: number;
+            /**
+             * @example RENT
+             * @enum {string}
+             */
+            type: "RENT" | "DEPOSIT_HELD" | "DEPOSIT_REFUND";
+            /** @example 150000 */
+            amount: number;
+            /**
+             * Format: date-time
+             * @example 2026-01-03T00:00:00.000Z
+             */
+            paymentDate: string;
+            /**
+             * @example CASH
+             * @enum {string}
+             */
+            paymentMethod: "CASH" | "ORANGE_MONEY" | "MOBILE_MONEY";
+            /** @example 1 */
+            createdById: number;
+            /**
+             * Format: date-time
+             * @example 2026-01-15T10:30:00.000Z
+             */
+            createdAt: string;
+            paymentLines: components["schemas"]["PaymentLineEntity"][];
+        };
         CreateRentDto: {
             /**
              * @description ID du contrat concerné
@@ -1203,6 +1209,21 @@ export interface components {
              * @example 2026-01
              */
             month: string;
+        };
+        PayableMonthEntity: {
+            /**
+             * Format: date-time
+             * @description 1er du mois à 00:00:00 UTC
+             * @example 2026-11-01T00:00:00.000Z
+             */
+            month: string;
+            /** @example 1500000 */
+            amount: number;
+            /**
+             * @example ADVANCE
+             * @enum {string}
+             */
+            status: "LATE" | "PENDING" | "ADVANCE";
         };
         UpdateUserDto: {
             /** @example John Doe */
@@ -2106,6 +2127,8 @@ export interface operations {
                 skip?: number;
                 /** @description Nombre d'éléments à retourner */
                 take?: number;
+                /** @description Recherche par nom du local ou du locataire (insensible à la casse) */
+                search?: string;
             };
             header?: never;
             path?: never;
@@ -2151,10 +2174,10 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaymentWithLinesEntity"];
+                    "application/json": components["schemas"]["PaymentDetailEntity"];
                 };
             };
-            /** @description Données invalides ou contrat annulé */
+            /** @description Données invalides, contrat non actif, date ou mois hors bornes */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2168,14 +2191,14 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Échéances ou contrat non trouvés */
+            /** @description Contrat non trouvé */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Échéances déjà soldées */
+            /** @description Mois déjà soldés, montant différent du total, caution non versée, ou mois modifiés entre-temps */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2380,7 +2403,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Contrat non actif ou aucun loyer actif trouvé */
+            /** @description Contrat non actif, aucun loyer actif trouvé, ou mois déjà facturé */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2483,7 +2506,7 @@ export interface operations {
                     "application/json": components["schemas"]["RentDueEntity"];
                 };
             };
-            /** @description Données invalides (format du mois incorrect, etc.) */
+            /** @description Données invalides (format du mois incorrect) ou mois hors de la période du contrat */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2556,7 +2579,7 @@ export interface operations {
             };
         };
     };
-    RentDueController_findPendingByContract: {
+    RentDueController_findPayable: {
         parameters: {
             query?: never;
             header?: never;
@@ -2567,13 +2590,12 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Liste des échéances en attente de paiement */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RentDueEntity"][];
+                    "application/json": components["schemas"]["PayableMonthEntity"][];
                 };
             };
             /** @description Token manquant ou invalide */
