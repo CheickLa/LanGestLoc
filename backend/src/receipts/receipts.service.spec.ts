@@ -121,6 +121,26 @@ describe('ReceiptsService', () => {
       });
     });
 
+    it('charge le local, le locataire et le bail avec le paiement', async () => {
+      mockPrisma.receipt.findUnique.mockResolvedValue(null);
+      mockPrisma.payment.findUnique.mockResolvedValue(payment);
+      mockTx.receipt.findFirst.mockResolvedValue(null);
+      mockTx.receipt.create.mockResolvedValue({
+        id: 1,
+        receiptNo: 'REC-2026-00001',
+      });
+
+      await service.generate(1);
+
+      expect(mockPrisma.payment.findUnique).toHaveBeenCalledWith({
+        where: { id: 1 },
+        include: {
+          contract: { include: { tenant: true, local: true, document: true } },
+          paymentLines: { include: { rentDue: true } },
+        },
+      });
+    });
+
     it('should throw NotFoundException when payment does not exist', async () => {
       mockPrisma.receipt.findUnique.mockResolvedValue(null);
       mockPrisma.payment.findUnique.mockResolvedValue(null);

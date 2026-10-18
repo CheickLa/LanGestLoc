@@ -163,8 +163,8 @@ export class ContractsService {
         },
       );
 
-      await this.paymentsService.generateReceiptSafe(depositPayment.id);
       await this.contractDocumentsService.generateSafe(contract.id);
+      await this.paymentsService.generateReceiptSafe(depositPayment.id);
 
       return contract;
     } catch (error) {

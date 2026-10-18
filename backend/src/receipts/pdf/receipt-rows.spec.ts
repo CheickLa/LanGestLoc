@@ -1,4 +1,4 @@
-import { groupReceiptLines } from './receipt-rows';
+import { groupDigits, groupReceiptLines } from './receipt-rows';
 
 const line = (month: string, amount = 1500000) => ({
   month: new Date(`${month}-01`),
@@ -7,7 +7,7 @@ const line = (month: string, amount = 1500000) => ({
 const augToOct = {
   from: 'août 2026',
   to: 'octobre 2026',
-  detail: '3 × 1 500 000 GNF',
+  detail: '3 mois × 1 500 000 GNF',
   total: 4500000,
 };
 
@@ -36,13 +36,13 @@ describe('groupReceiptLines', () => {
       {
         from: 'novembre 2026',
         to: 'décembre 2026',
-        detail: '2 × 1 500 000 GNF',
+        detail: '2 mois × 1 500 000 GNF',
         total: 3000000,
       },
       {
         from: 'janvier 2027',
         to: 'février 2027',
-        detail: '2 × 1 700 000 GNF',
+        detail: '2 mois × 1 700 000 GNF',
         total: 3400000,
       },
     ]);
@@ -59,5 +59,12 @@ describe('groupReceiptLines', () => {
       { from: 'août 2026', to: null, detail: null, total: 1500000 },
       { from: 'octobre 2026', to: null, detail: null, total: 1500000 },
     ]);
+  });
+});
+
+describe('groupDigits', () => {
+  it('groupe les milliers avec des espaces simples', () => {
+    expect(groupDigits(10900000)).toBe('10 900 000');
+    expect(groupDigits(850)).toBe('850');
   });
 });

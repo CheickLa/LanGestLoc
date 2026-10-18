@@ -392,6 +392,18 @@ describe('ContractsService', () => {
         },
       });
     });
+
+    it('génère le bail avant le reçu de la caution', async () => {
+      mockCreatableContract();
+
+      await service.create({ ...createDto, startDate: '2027-06-01' }, 1);
+
+      expect(
+        mockContractDocumentsService.generateSafe.mock.invocationCallOrder[0],
+      ).toBeLessThan(
+        mockPaymentsService.generateReceiptSafe.mock.invocationCallOrder[0],
+      );
+    });
   });
 
   describe('findAll', () => {

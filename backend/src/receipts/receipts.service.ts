@@ -37,6 +37,7 @@ export class ReceiptsService {
           include: {
             tenant: true,
             local: true,
+            document: true,
           },
         },
         paymentLines: {

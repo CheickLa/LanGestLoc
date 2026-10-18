@@ -406,6 +406,9 @@ async function main() {
     const isPdf = (dl.headers.get('content-type') || '').includes('pdf');
     expect('GET /receipts/:id/download → 200', dl, 200);
     check('le téléchargement renvoie un content-type PDF', isPdf, `ct=${dl.headers.get('content-type')}`);
+    const pdfText = dl.text || '';
+    check('le reçu est au format A4', pdfText.includes('/MediaBox [0 0 595.28 841.89]'));
+    check('le reçu embarque les polices Geist', /\/BaseFont \/[A-Z]{6}\+Geist-/.test(pdfText));
   } else {
     check('reçu disponible pour téléchargement', false, 'pas de receiptId (génération S3 échouée ?)');
   }
