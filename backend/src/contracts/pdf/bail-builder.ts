@@ -1,6 +1,7 @@
 import PDFDocument from 'pdfkit';
 import { COLOR } from '@/common/pdf/colors';
 import { registerFonts, FontSet } from '@/common/pdf/fonts';
+import { drawLogo } from '@/common/pdf/logo';
 import { formatPhone } from '@/common/pdf/phone';
 import { buildBailClauses, ClauseContext } from './bail-template';
 
@@ -33,6 +34,9 @@ const PAGE_H = 841.89;
 const MARGIN = 48;
 const CONTENT_W = PAGE_W - MARGIN * 2;
 const CONTENT_BOTTOM = PAGE_H - 60; // Marge basse + espace pour pied de pages
+// Boîte du logo, comme sur le reçu ; le carré de l'icône en occupe 88 %.
+const LOGO_BOX = 18;
+const LOGO = LOGO_BOX * 0.88;
 
 // ── Helpers de formatage ──
 function groupAmount(n: number): string {
@@ -102,6 +106,18 @@ export function buildBailPdf(
       .fillColor(COLOR.ink)
       .text('Contrat de location', MARGIN, MARGIN);
     const refY = doc.y + 6;
+
+    // Logo et nom de l'application à droite, sur la ligne du titre
+    doc.font(F.sansSemiBold).fontSize(10.5).fillColor(COLOR.ink);
+    const brandX = PAGE_W - MARGIN - doc.widthOfString('LanGestLoc');
+    const inset = (LOGO_BOX - LOGO) / 2;
+    drawLogo(doc, brandX - 6 - LOGO_BOX + inset, MARGIN + inset, LOGO);
+    doc.text(
+      'LanGestLoc',
+      brandX,
+      MARGIN + (LOGO_BOX - doc.currentLineHeight()) / 2,
+      { lineBreak: false },
+    );
     doc
       .fontSize(9)
       .font(F.sansRegular)
