@@ -274,6 +274,12 @@ jobs:
             exit 1
           fi
 
+      - name: Vérifier les polices des PDF dans l'image
+        run: >-
+          docker run --rm --entrypoint ls "$IMAGE"
+          assets/fonts/Geist-Regular.ttf assets/fonts/Geist-Medium.ttf assets/fonts/Geist-SemiBold.ttf
+          assets/fonts/GeistMono-Regular.ttf assets/fonts/GeistMono-Medium.ttf
+
       - name: Journal de l'API (en cas d'échec)
         if: failure()
         run: docker logs api || echo "aucun conteneur api"

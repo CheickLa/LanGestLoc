@@ -31,6 +31,8 @@ COPY package.json ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./
 COPY --from=build /app/dist ./dist
+# Polices Geist des PDF (reçus, bail)
+COPY assets ./assets
 
 USER node
 EXPOSE 3000

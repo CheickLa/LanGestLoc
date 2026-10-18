@@ -1,6 +1,8 @@
 import PDFDocument from 'pdfkit';
+import { COLOR } from '@/common/pdf/colors';
+import { registerFonts, FontSet } from '@/common/pdf/fonts';
+import { formatPhone } from '@/common/pdf/phone';
 import { buildBailClauses, ClauseContext } from './bail-template';
-import { registerFonts, FontSet } from './fonts';
 
 export interface BailTenant {
   name: string;
@@ -32,16 +34,6 @@ const MARGIN = 48;
 const CONTENT_W = PAGE_W - MARGIN * 2;
 const CONTENT_BOTTOM = PAGE_H - 60; // Marge basse + espace pour pied de pages
 
-const COLOR = {
-  brand: '#194FD6',
-  ink: '#0E1726',
-  muted: '#5B6472',
-  faint: '#8A92A1',
-  line: '#E8EAF0',
-  soft: '#F4F6FA',
-  white: '#FFFFFF',
-} as const;
-
 // ── Helpers de formatage ──
 function groupAmount(n: number): string {
   return n
@@ -55,15 +47,6 @@ function amountText(n: number): string {
 
 function formatDate(date: Date): string {
   return new Date(date).toLocaleDateString('fr-FR', { timeZone: 'UTC' });
-}
-
-function formatPhone(p: string): string {
-  const digits = p.replace(/\D/g, '');
-  if (digits.startsWith('224') && digits.length === 12) {
-    const n = digits.slice(3);
-    return `+224 ${n.slice(0, 3)} ${n.slice(3, 6)} ${n.slice(6, 9)}`;
-  }
-  return p;
 }
 
 // Petite légende en capitales (Geist Mono) — rôles et libellés de la fiche.
