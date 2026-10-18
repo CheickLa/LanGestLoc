@@ -62,7 +62,7 @@ export async function backendFetchAll<T>(path: string): Promise<T[]> {
  */
 export async function backendMutate(
   path: string,
-  init: { method: "POST" | "PATCH" | "DELETE"; body?: unknown },
+  init: { method: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown },
 ): Promise<NextResponse> {
   let response: Response;
   try {

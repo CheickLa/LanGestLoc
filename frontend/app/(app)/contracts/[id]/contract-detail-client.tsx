@@ -9,6 +9,7 @@ import {
   XCircle,
   Ban,
   FileText,
+  CreditCard,
 } from "lucide-react";
 
 import type { components } from "@/lib/api/schema";
@@ -29,6 +30,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatGNF, formatDate } from "@/lib/format";
 import { monthOf } from "@/lib/months";
+import {
+  PAYMENT_METHOD_LABEL,
+  PAYMENT_TYPE_LABEL,
+  paymentPeriod,
+  contractLabel,
+} from "@/lib/payments";
+import { PaymentDialog } from "@/components/payments/payment-dialog";
 
 import { IncreaseRentDialog } from "./increase-rent-dialog";
 import { TerminateContractDialog } from "./terminate-contract-dialog";
@@ -38,17 +46,6 @@ type ContractDetail = components["schemas"]["ContractDetailEntity"];
 type RentDue = components["schemas"]["RentDueEntity"];
 type Rent = components["schemas"]["RentEntity"];
 type Payment = components["schemas"]["PaymentWithLinesEntity"];
-
-const PAYMENT_METHOD_LABEL: Record<string, string> = {
-  CASH: "Espèces",
-  ORANGE_MONEY: "Orange Money",
-  MOBILE_MONEY: "Mobile Money",
-};
-const PAYMENT_TYPE_LABEL: Record<string, string> = {
-  RENT: "Loyer",
-  DEPOSIT_HELD: "Caution",
-  DEPOSIT_REFUND: "Restitution caution",
-};
 
 function monthLabel(iso: string) {
   return new Intl.DateTimeFormat("fr-FR", {
@@ -71,7 +68,7 @@ export function ContractDetailClient({
   payments: Payment[];
   isAdmin: boolean;
 }) {
-  const [action, setAction] = useState<"increase" | "terminate" | "cancel" | null>(null);
+  const [action, setAction] = useState<"increase" | "terminate" | "cancel" | "payment" | null>(null);
 
   const isActive = contract.status === "ACTIVE";
   const canAct = isAdmin && isActive;
@@ -101,41 +98,48 @@ export function ContractDetailClient({
           </p>
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon" aria-label="Actions">
-              <MoreHorizontal className="size-4" />
+        <div className="flex items-center gap-2">
+          {isActive ? (
+            <Button size="sm" onClick={() => setAction("payment")}>
+              <CreditCard className="size-4" /> Paiement
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            {canAct ? (
-              <>
-                <DropdownMenuItem onClick={() => setAction("increase")}>
-                  <TrendingUp className="size-4" /> Augmenter le loyer
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setAction("terminate")}>
-                  <XCircle className="size-4" /> Résilier
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => setAction("cancel")}
-                  className="text-danger-foreground"
+          ) : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="Actions">
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {canAct ? (
+                <>
+                  <DropdownMenuItem onClick={() => setAction("increase")}>
+                    <TrendingUp className="size-4" /> Augmenter le loyer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setAction("terminate")}>
+                    <XCircle className="size-4" /> Résilier
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setAction("cancel")}
+                    className="text-danger-foreground"
+                  >
+                    <Ban className="size-4" /> Annuler
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              ) : null}
+              <DropdownMenuItem asChild>
+                <a
+                  href={`/api/contracts/${contract.id}/document`}
+                  target="_blank"
+                  rel="noopener"
                 >
-                  <Ban className="size-4" /> Annuler
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            ) : null}
-            <DropdownMenuItem asChild>
-              <a
-                href={`/api/contracts/${contract.id}/document`}
-                target="_blank"
-                rel="noopener"
-              >
-                <FileText className="size-4" /> Ouvrir le bail
-              </a>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                  <FileText className="size-4" /> Ouvrir le bail
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Synthèse */}
@@ -222,7 +226,14 @@ export function ContractDetailClient({
                 <span key="m" className="text-muted-foreground">
                   {PAYMENT_METHOD_LABEL[p.paymentMethod] ?? p.paymentMethod}
                 </span>,
-                PAYMENT_TYPE_LABEL[p.type] ?? p.type,
+                <div key="t">
+                  {PAYMENT_TYPE_LABEL[p.type] ?? p.type}
+                  {p.type === "RENT" ? (
+                    <div className="mt-0.5 text-[12.5px] text-muted-foreground">
+                      {paymentPeriod(p)}
+                    </div>
+                  ) : null}
+                </div>,
                 <a
                   key="r"
                   href={`/api/receipts/by-payment/${p.id}`}
@@ -261,6 +272,13 @@ export function ContractDetailClient({
         onOpenChange={(o) => setAction(o ? "cancel" : null)}
         contractId={contract.id}
       />
+      {isActive ? (
+        <PaymentDialog
+          open={action === "payment"}
+          onOpenChange={(o) => setAction(o ? "payment" : null)}
+          contract={{ id: contract.id, label: contractLabel(contract) }}
+        />
+      ) : null}
     </div>
   );
 }
