@@ -6,6 +6,11 @@ export function firstOfMonth(date: Date, offset = 0): Date {
   );
 }
 
+export function parseMonth(ym: string): Date {
+  const [year, month] = ym.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, 1));
+}
+
 export function isLastDayOfMonth(date: Date): boolean {
   const nextDay = new Date(date.getTime() + 24 * 60 * 60 * 1000);
   return nextDay.getUTCDate() === 1;

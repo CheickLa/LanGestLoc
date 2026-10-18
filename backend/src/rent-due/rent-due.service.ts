@@ -8,8 +8,9 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { CreateRentDueDto } from './dto/create-rent-due.dto';
 import { PrismaService } from '@/prisma/prisma.service';
-import { firstOfMonth } from '@/common/months';
-import { dueDateOf } from './due-date';
+import { firstOfMonth, parseMonth } from '@/common/months';
+import { dueDateOf, initialStatusOf } from './due-date';
+import { payableMonths } from './payable-months';
 import { ContractStatus, RentDueStatus } from '@generated/prisma/client';
 
 @Injectable()
@@ -22,9 +23,19 @@ export class RentDueService {
   async generate(dto: CreateRentDueDto) {
     const { contractId, month } = dto;
 
-    const [year, monthIndex] = month.split('-').map(Number);
-    const monthDate = new Date(Date.UTC(year, monthIndex - 1, 1));
-    const endOfMonth = new Date(Date.UTC(year, monthIndex, 0, 23, 59, 59, 999));
+    const monthDate = parseMonth(month);
+    const endOfMonth = new Date(
+      Date.UTC(
+        monthDate.getUTCFullYear(),
+        monthDate.getUTCMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      ),
+    );
+    const dueDate = dueDateOf(monthDate);
 
     const contract = await this.prisma.contract.findUnique({
       where: { id: contractId },
@@ -73,7 +84,8 @@ export class RentDueService {
         rentId: activeRent.id,
         month: monthDate,
         amount: activeRent.amount,
-        dueDate: dueDateOf(monthDate),
+        dueDate,
+        status: initialStatusOf(dueDate),
       },
     });
   }
@@ -92,18 +104,22 @@ export class RentDueService {
     });
   }
 
-  // Liste les échéances d'un contrat filtrées par statut
-  async findByContract(contractId: number, status: RentDueStatus) {
+  // Mois à payer d'un contrat, du plus ancien dû à la limite de l'avance
+  async findPayable(contractId: number) {
     const contract = await this.prisma.contract.findUnique({
       where: { id: contractId },
+      include: { rents: true, rentDues: true },
     });
     if (!contract)
       throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+    if (contract.status !== ContractStatus.ACTIVE) return [];
 
-    return this.prisma.rentDue.findMany({
-      where: { contractId, status },
-      orderBy: { month: 'desc' },
-    });
+    return payableMonths(
+      contract,
+      contract.rentDues,
+      contract.rents,
+      new Date(),
+    ).map(({ month, amount, status }) => ({ month, amount, status }));
   }
 
   // Cron : le 1er du mois à minuit, crée le mois en cours des contrats ACTIFS dont la période le couvre

@@ -46,7 +46,7 @@ export class PaymentEntity {
   createdAt: Date;
 }
 
-/** Réponse de POST /payments et GET /payments/contract/:id : + lignes (avec échéance). */
+/** Réponse de GET /payments/contract/:id : + lignes (avec échéance). */
 export class PaymentWithLinesEntity extends PaymentEntity {
   @ApiProperty({ type: () => [PaymentLineEntity] })
   paymentLines: PaymentLineEntity[];
@@ -58,7 +58,7 @@ export class PaymentWithRelationsEntity extends PaymentWithLinesEntity {
   contract: ContractWithPartiesEntity;
 }
 
-/** Détail GET /payments/:id : + reçu associé. */
+/** Détail GET /payments/:id et réponse de POST /payments : + reçu associé. */
 export class PaymentDetailEntity extends PaymentWithRelationsEntity {
   @ApiProperty({ type: () => ReceiptEntity, nullable: true })
   receipt: ReceiptEntity | null;

@@ -15,10 +15,11 @@ import {
   ApiOkResponse,
   ApiCreatedResponse,
 } from '@nestjs/swagger';
-import { Role, RentDueStatus } from '@generated/prisma/client';
+import { Role } from '@generated/prisma/client';
 import { RentDueService } from './rent-due.service';
 import { CreateRentDueDto } from './dto/create-rent-due.dto';
 import { RentDueEntity } from './entities/rent-due.entity';
+import { PayableMonthEntity } from './entities/payable-month.entity';
 import { JwtAuthGuard, RolesGuard } from '@/auth/guards';
 import { Roles } from '@/auth/decorators';
 
@@ -71,20 +72,16 @@ export class RentDueController {
     return this.rentDueService.findAllByContract(contractId);
   }
 
-  @Get('contract/:contractId/pending')
-  @ApiOperation({ summary: "Lister les échéances PENDING d'un contrat" })
-  @ApiOkResponse({
-    description: 'Liste des échéances en attente de paiement',
-    type: RentDueEntity,
-    isArray: true,
+  @Get('contract/:contractId/payable')
+  @ApiOperation({
+    summary:
+      "Mois payables d'un contrat, du plus ancien dû à la limite de l'avance",
   })
+  @ApiOkResponse({ type: PayableMonthEntity, isArray: true })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({ status: 404, description: 'Contrat non trouvé' })
-  findPendingByContract(@Param('contractId', ParseIntPipe) contractId: number) {
-    return this.rentDueService.findByContract(
-      contractId,
-      RentDueStatus.PENDING,
-    );
+  findPayable(@Param('contractId', ParseIntPipe) contractId: number) {
+    return this.rentDueService.findPayable(contractId);
   }
 
   @Post('cron/generate')

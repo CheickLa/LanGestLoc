@@ -7,8 +7,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { ReceiptsService } from '@/receipts/receipts.service';
-import { PaginationDto } from '@/common/dto/pagination.dto';
+import { firstOfMonth, parseMonth } from '@/common/months';
+import { dueDateOf } from '@/rent-due/due-date';
+import { MAX_ADVANCE_MONTHS, payableMonths } from '@/rent-due/payable-months';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { FindPaymentsQueryDto } from './dto/find-payments-query.dto';
 import {
   ContractStatus,
   DepositStatus,
@@ -28,118 +31,143 @@ export class PaymentsService {
   ) {}
 
   async create(dto: CreatePaymentDto, userId: number) {
-    const { rentDueIds, paymentDate, paymentMethod } = dto;
+    const { contractId, untilMonth, amount, paymentDate, paymentMethod } = dto;
 
-    const uniqueIds = [...new Set(rentDueIds)];
-
-    // les RentDue ciblées
-    const rentDues = await this.prisma.rentDue.findMany({
-      where: { id: { in: uniqueIds } },
-    });
-
-    // Vérf que toutes les IDs existent
-    if (rentDues.length !== uniqueIds.length) {
-      const foundIds = rentDues.map((r) => r.id);
-      const missing = uniqueIds.filter((id) => !foundIds.includes(id));
-      throw new NotFoundException(
-        `Échéances introuvables : ${missing.join(', ')}`,
-      );
-    }
-
-    // Vérif que toutes appartiennent au même contrat
-    const contractIds = [...new Set(rentDues.map((r) => r.contractId))];
-    if (contractIds.length > 1) {
-      throw new BadRequestException(
-        'Toutes les échéances doivent appartenir au même contrat',
-      );
-    }
-    const contractId = contractIds[0];
-
-    // Vérif que le contrat est ACTIVE (pas de paiement sur TERMINATED ou CANCELED)
-    const contract = await this.prisma.contract.findUnique({
-      where: { id: contractId },
-    });
-    if (!contract)
-      throw new NotFoundException(`Contrat #${contractId} non trouvé`);
-    if (contract.status !== ContractStatus.ACTIVE) {
-      throw new BadRequestException(
-        `Impossible de payer sur un contrat ${contract.status.toLowerCase()}`,
-      );
-    }
-
-    // Vérif que toutes les RentDue sont PENDING ou LATE (pas déjà PAID)
-    const alreadyPaid = rentDues.filter((r) => r.status === RentDueStatus.PAID);
-    if (alreadyPaid.length > 0) {
-      throw new ConflictException(
-        `Les échéances suivantes sont déjà soldées : ${alreadyPaid.map((r) => r.id).join(', ')}`,
-      );
-    }
-
-    const paymentDateObj = new Date(paymentDate);
-    if (paymentDateObj.getTime() > Date.now()) {
-      throw new BadRequestException(
-        'La date de paiement ne peut pas être dans le futur',
-      );
-    }
-    if (paymentDateObj < contract.startDate) {
-      throw new BadRequestException(
-        'La date de paiement ne peut pas être antérieure au début du contrat',
-      );
-    }
-
-    // Montant total depuis les RentDue (pas de saisie manuelle)
-    const amount = rentDues.reduce((sum, r) => sum + r.amount, 0);
-
+    let paymentId: number;
     try {
-      const payment = await this.prisma.$transaction(async (tx) => {
-        await tx.rentDue.updateMany({
-          where: { id: { in: uniqueIds } },
-          data: { status: RentDueStatus.PAID },
+      paymentId = await this.prisma.$transaction(async (tx) => {
+        // Sérialise avec la résiliation, l'annulation et l'augmentation du contrat
+        await tx.$queryRaw`SELECT id FROM "Contract" WHERE id = ${contractId} FOR UPDATE`;
+        const contract = await tx.contract.findUnique({
+          where: { id: contractId },
+          include: {
+            rents: true,
+            rentDues: true,
+            payments: { where: { type: PaymentType.DEPOSIT_HELD } },
+          },
         });
+        if (!contract)
+          throw new NotFoundException(`Contrat #${contractId} non trouvé`);
+        if (contract.status !== ContractStatus.ACTIVE) {
+          throw new BadRequestException(
+            `Impossible de payer sur un contrat ${contract.status.toLowerCase()}`,
+          );
+        }
+        const deposit = contract.payments[0];
+        if (!deposit) {
+          throw new ConflictException(
+            `Le contrat #${contractId} n'a pas de versement de caution`,
+          );
+        }
 
-        return tx.payment.create({
+        const now = new Date();
+        const paymentDateObj = new Date(paymentDate);
+        if (paymentDateObj.getTime() > now.getTime()) {
+          throw new BadRequestException(
+            'La date de paiement ne peut pas être dans le futur',
+          );
+        }
+        if (paymentDateObj < deposit.paymentDate) {
+          throw new BadRequestException(
+            'La date de paiement ne peut pas être antérieure au versement de la caution',
+          );
+        }
+
+        const until = parseMonth(untilMonth);
+        if (until < firstOfMonth(contract.startDate)) {
+          throw new BadRequestException(
+            `Le mois ${untilMonth} est avant le début du contrat`,
+          );
+        }
+        if (contract.endDate && until > firstOfMonth(contract.endDate)) {
+          throw new BadRequestException(
+            `Le mois ${untilMonth} est après la fin du contrat`,
+          );
+        }
+        if (until > firstOfMonth(now, MAX_ADVANCE_MONTHS)) {
+          throw new BadRequestException(
+            `Le paiement à l'avance est limité à ${MAX_ADVANCE_MONTHS} mois après le mois en cours`,
+          );
+        }
+
+        const toPay = payableMonths(
+          contract,
+          contract.rentDues,
+          contract.rents,
+          now,
+        ).filter((m) => m.month <= until);
+        if (toPay.length === 0) {
+          throw new ConflictException(
+            `Les loyers sont déjà soldés jusqu'à ${untilMonth}`,
+          );
+        }
+        const total = toPay.reduce((sum, m) => sum + m.amount, 0);
+        if (total !== amount) {
+          throw new ConflictException(
+            `Le montant (${amount}) ne correspond pas au total des mois à payer (${total})`,
+          );
+        }
+
+        const toCreate = toPay.filter((m) => m.rentDueId === null);
+        const created = toCreate.length
+          ? await tx.rentDue.createManyAndReturn({
+              data: toCreate.map((m) => ({
+                contractId,
+                rentId: m.rentId,
+                month: m.month,
+                amount: m.amount,
+                dueDate: dueDateOf(m.month),
+                status: RentDueStatus.PAID,
+              })),
+            })
+          : [];
+        const createdIdByMonth = new Map(
+          created.map((d) => [d.month.getTime(), d.id]),
+        );
+
+        const existingIds = toPay
+          .map((m) => m.rentDueId)
+          .filter((id): id is number => id !== null);
+        if (existingIds.length) {
+          await tx.rentDue.updateMany({
+            where: { id: { in: existingIds } },
+            data: { status: RentDueStatus.PAID },
+          });
+        }
+
+        const payment = await tx.payment.create({
           data: {
             contractId,
             type: PaymentType.RENT,
-            amount,
+            amount: total,
             paymentDate: paymentDateObj,
             paymentMethod,
             createdById: userId,
             paymentLines: {
-              create: uniqueIds.map((rentDueId) => ({ rentDueId })),
-            },
-          },
-          include: {
-            paymentLines: {
-              include: { rentDue: true },
+              create: toPay.map((m) => ({
+                rentDueId:
+                  m.rentDueId ?? createdIdByMonth.get(m.month.getTime())!,
+              })),
             },
           },
         });
+        return payment.id;
       });
-
-      // Génère le reçu PDF après le commit de la transaction
-      // En cas d'échec, le paiement reste valide et le reçu pourra être regénéré
-      try {
-        await this.receiptsService.generate(payment.id);
-      } catch (error) {
-        this.logger.error(
-          `Échec génération reçu pour paiement #${payment.id}`,
-          error,
-        );
-      }
-
-      return payment;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
         throw new ConflictException(
-          "Une ou plusieurs échéances viennent d'être soldées par un autre paiement",
+          "Les mois à payer viennent d'être modifiés : recommencer.",
         );
       }
       throw error;
     }
+
+    // Le reçu se génère après le commit ; en cas d'échec il pourra être regénéré
+    await this.generateReceiptSafe(paymentId);
+    return this.findOne(paymentId);
   }
 
   /**
@@ -240,18 +268,29 @@ export class PaymentsService {
     }
   }
 
-  async findAll({ skip, take }: PaginationDto) {
+  async findAll({ skip, take, search }: FindPaymentsQueryDto) {
+    const where: Prisma.PaymentWhereInput = search
+      ? {
+          contract: {
+            OR: [
+              { local: { name: { contains: search, mode: 'insensitive' } } },
+              { tenant: { name: { contains: search, mode: 'insensitive' } } },
+            ],
+          },
+        }
+      : {};
     const [items, total] = await this.prisma.$transaction([
       this.prisma.payment.findMany({
+        where,
         skip,
         take,
         include: {
           paymentLines: { include: { rentDue: true } },
           contract: { include: { tenant: true, local: true } },
         },
-        orderBy: { paymentDate: 'desc' },
+        orderBy: [{ paymentDate: 'desc' }, { id: 'desc' }],
       }),
-      this.prisma.payment.count(),
+      this.prisma.payment.count({ where }),
     ]);
 
     return { items, total, skip, take };
@@ -269,7 +308,7 @@ export class PaymentsService {
       include: {
         paymentLines: { include: { rentDue: true } },
       },
-      orderBy: { paymentDate: 'desc' },
+      orderBy: [{ paymentDate: 'desc' }, { id: 'desc' }],
     });
   }
 
