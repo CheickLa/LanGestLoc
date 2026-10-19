@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Plus } from "lucide-react";
 
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { formatDate, formatGNF } from "@/lib/format";
 import { PAYMENT_METHOD_LABEL, PAYMENT_TYPE_LABEL, paymentPeriod } from "@/lib/payments";
+import { useSearchQuery } from "@/lib/use-search-query";
 import type { PaymentsPage } from "./page";
 
 type PaymentRow = components["schemas"]["PaymentWithRelationsEntity"];
@@ -28,19 +29,8 @@ export function PaymentsPageClient({
   contracts: PaymentContract[];
 }) {
   const router = useRouter();
-  const [searchInput, setSearchInput] = useState(search);
+  const [searchInput, setSearchInput] = useSearchQuery(search, "/payments");
   const [createOpen, setCreateOpen] = useState(false);
-
-  useEffect(() => {
-    if (searchInput.trim() === search) return;
-    const handle = setTimeout(() => {
-      const params = new URLSearchParams();
-      if (searchInput.trim()) params.set("q", searchInput.trim());
-      const query = params.toString();
-      router.push(`/payments${query ? `?${query}` : ""}`);
-    }, 350);
-    return () => clearTimeout(handle);
-  }, [searchInput, search, router]);
 
   function goToPage(nextSkip: number) {
     const params = new URLSearchParams();

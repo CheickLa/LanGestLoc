@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Plus } from "lucide-react";
 
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatGNF, formatDate } from "@/lib/format";
+import { useSearchQuery } from "@/lib/use-search-query";
 import type { ContractsPage, ContractFormData } from "./page";
 import { ContractFormDialog } from "./contract-form-dialog";
 
@@ -30,19 +31,8 @@ export function ContractsPageClient({
   formData: ContractFormData | null;
 }) {
   const router = useRouter();
-  const [searchInput, setSearchInput] = useState(search);
+  const [searchInput, setSearchInput] = useSearchQuery(search, "/contracts");
   const [createOpen, setCreateOpen] = useState(false);
-
-  useEffect(() => {
-    if (searchInput.trim() === search) return;
-    const handle = setTimeout(() => {
-      const params = new URLSearchParams();
-      if (searchInput.trim()) params.set("q", searchInput.trim());
-      const query = params.toString();
-      router.push(`/contracts${query ? `?${query}` : ""}`);
-    }, 350);
-    return () => clearTimeout(handle);
-  }, [searchInput, search, router]);
 
   function goToPage(nextSkip: number) {
     const params = new URLSearchParams();

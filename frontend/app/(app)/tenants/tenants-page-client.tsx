@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
@@ -8,6 +8,7 @@ import type { components } from "@/lib/api/schema";
 import { Button } from "@/components/ui/button";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import { formatDate } from "@/lib/format";
+import { useSearchQuery } from "@/lib/use-search-query";
 import type { TenantsPage } from "./page";
 import { TenantFormDialog } from "./tenant-form-dialog";
 import { DeleteTenantDialog } from "./delete-tenant-dialog";
@@ -30,19 +31,8 @@ export function TenantsPageClient({
   search: string;
 }) {
   const router = useRouter();
-  const [searchInput, setSearchInput] = useState(search);
+  const [searchInput, setSearchInput] = useSearchQuery(search, "/tenants");
   const [dialog, setDialog] = useState<DialogState>({ kind: "closed" });
-
-  useEffect(() => {
-    if (searchInput.trim() === search) return;
-    const handle = setTimeout(() => {
-      const params = new URLSearchParams();
-      if (searchInput.trim()) params.set("q", searchInput.trim());
-      const query = params.toString();
-      router.push(`/tenants${query ? `?${query}` : ""}`);
-    }, 350);
-    return () => clearTimeout(handle);
-  }, [searchInput, search, router]);
 
   function goToPage(nextSkip: number) {
     const params = new URLSearchParams();
