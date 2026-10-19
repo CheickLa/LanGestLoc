@@ -23,11 +23,11 @@ Application de gestion locative pour des boutiques et locaux commerciaux en Guin
 
 ## Lancer en local
 
-Il faut Docker et un fichier `.env` à la racine (base, JWT, S3, comptes du seed).
+Il faut Docker, Node.js (npm) et un fichier `.env` à la racine (base, JWT, S3, comptes du seed).
 
 ```sh
 docker compose up        # Postgres, stockage S3 local et API sur le port 3000
 cd frontend && npm install && npm run dev   # front sur le port 3001
 ```
 
-Prisma Studio : `cd backend && npx prisma studio`.
+Prisma Studio : `cd backend && npx prisma studio`. Il lit `DATABASE_URL` dans `backend/.env`, pas dans le `.env` de la racine : la base y est sur `localhost:5432`.
