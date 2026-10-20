@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma, Receipt } from '@generated/prisma/client';
 import { PrismaService } from '@/prisma/prisma.service';
 import { S3Service } from '@/s3/s3.service';
 import { buildReceiptPdf } from './pdf/pdf-builder';
@@ -24,7 +25,7 @@ export class ReceiptsService {
     this.lieu = this.config.getOrThrow<string>('BAILLEUR_LIEU');
   }
 
-  async generate(paymentId: number) {
+  async generate(paymentId: number): Promise<Receipt> {
     const existing = await this.prisma.receipt.findUnique({
       where: { paymentId },
     });
@@ -48,9 +49,11 @@ export class ReceiptsService {
     if (!payment)
       throw new NotFoundException(`Paiement #${paymentId} non trouvé`);
 
-    const receipt = await this.prisma.$transaction(async (tx) => {
+    // La clé contient l'id du paiement : un numéro en double ne peut pas
+    // écraser le PDF d'un autre paiement.
+    const buildAndPersist = async (): Promise<Receipt> => {
       const year = new Date().getUTCFullYear();
-      const lastReceipt = await tx.receipt.findFirst({
+      const lastReceipt = await this.prisma.receipt.findFirst({
         where: { receiptNo: { startsWith: `REC-${year}-` } },
         orderBy: { receiptNo: 'desc' },
       });
@@ -66,20 +69,30 @@ export class ReceiptsService {
         this.lieu,
       );
 
-      // Upload PDF sur S3
-      const s3Key = `receipts/${year}/${receiptNo}.pdf`;
+      const s3Key = `receipts/${paymentId}/${receiptNo}.pdf`;
       await this.s3.upload(s3Key, pdfBuffer, 'application/pdf');
 
-      return tx.receipt.create({
-        data: {
-          paymentId,
-          receiptNo,
-          s3Key,
-        },
+      return this.prisma.receipt.create({
+        data: { paymentId, receiptNo, s3Key },
       });
-    });
+    };
 
-    return receipt;
+    try {
+      return await buildAndPersist();
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        const raced = await this.prisma.receipt.findUnique({
+          where: { paymentId },
+        });
+        if (raced) return raced;
+
+        return await buildAndPersist();
+      }
+      throw e;
+    }
   }
 
   async findByPayment(paymentId: number) {

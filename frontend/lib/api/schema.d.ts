@@ -1076,7 +1076,7 @@ export interface components {
             receiptNo: string;
             /**
              * @description Clé du fichier PDF sur S3
-             * @example receipts/2026/REC-2026-00042.pdf
+             * @example receipts/42/REC-2026-00042.pdf
              */
             s3Key: string;
             /**
