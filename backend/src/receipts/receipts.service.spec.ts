@@ -8,19 +8,12 @@ import { ReceiptsService } from './receipts.service';
 import { PrismaService } from '@/prisma/prisma.service';
 import { S3Service } from '@/s3/s3.service';
 import * as pdfBuilder from './pdf/pdf-builder';
-
-const mockTx = {
-  receipt: { findFirst: jest.fn(), create: jest.fn() },
-};
-
-type MockTx = typeof mockTx;
-
-const runInTransaction = <T>(cb: (tx: MockTx) => Promise<T>) => cb(mockTx);
+import { Prisma } from '@generated/prisma/client';
 
 const mockPrisma = {
-  receipt: { findUnique: jest.fn() },
+  receipt: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
   payment: { findUnique: jest.fn() },
-  $transaction: jest.fn(runInTransaction),
+  $transaction: jest.fn(),
 };
 
 const mockS3 = {
@@ -29,16 +22,20 @@ const mockS3 = {
 };
 
 const mockConfig = {
-  getOrThrow: jest.fn((key: string) => {
+  getOrThrow: (key: string) => {
     if (key === 'BAILLEUR_NAME') return 'Test Bailleur';
     if (key === 'BAILLEUR_LIEU') return 'Conakry';
     return '';
-  }),
+  },
 };
 
-jest
-  .spyOn(pdfBuilder, 'buildReceiptPdf')
-  .mockResolvedValue(Buffer.from('fake-pdf'));
+const buildReceiptPdf = jest.spyOn(pdfBuilder, 'buildReceiptPdf');
+
+const uniqueViolation = () =>
+  new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+    code: 'P2002',
+    clientVersion: '7.0.0',
+  });
 
 describe('ReceiptsService', () => {
   let service: ReceiptsService;
@@ -54,8 +51,10 @@ describe('ReceiptsService', () => {
     }).compile();
 
     service = module.get<ReceiptsService>(ReceiptsService);
-    jest.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation(runInTransaction);
+    jest.resetAllMocks();
+    buildReceiptPdf.mockImplementation((_payment, receiptNo) =>
+      Promise.resolve(Buffer.from(`pdf ${receiptNo}`)),
+    );
   });
 
   describe('generate', () => {
@@ -67,6 +66,12 @@ describe('ReceiptsService', () => {
       paymentMethod: 'CASH',
       paymentDate: new Date(),
     };
+    const year = new Date().getUTCFullYear();
+
+    const givenNewReceipt = () => {
+      mockPrisma.receipt.findUnique.mockResolvedValue(null);
+      mockPrisma.payment.findUnique.mockResolvedValue(payment);
+    };
 
     it('should return existing receipt if already generated', async () => {
       const existing = { id: 1, paymentId: 1, receiptNo: 'REC-2026-00001' };
@@ -76,59 +81,45 @@ describe('ReceiptsService', () => {
 
       expect(result).toEqual(existing);
       expect(mockPrisma.payment.findUnique).not.toHaveBeenCalled();
+      expect(mockS3.upload).not.toHaveBeenCalled();
     });
 
     it('should generate a new receipt with sequential number', async () => {
-      mockPrisma.receipt.findUnique.mockResolvedValue(null);
-      mockPrisma.payment.findUnique.mockResolvedValue(payment);
-      mockTx.receipt.findFirst.mockResolvedValue({
-        receiptNo: 'REC-2026-00003',
+      givenNewReceipt();
+      mockPrisma.receipt.findFirst.mockResolvedValue({
+        receiptNo: `REC-${year}-00003`,
       });
-      const created = { id: 1, paymentId: 1, receiptNo: 'REC-2026-00004' };
-      mockTx.receipt.create.mockResolvedValue(created);
+      const created = { id: 1, paymentId: 1, receiptNo: `REC-${year}-00004` };
+      mockPrisma.receipt.create.mockResolvedValue(created);
 
       const result = await service.generate(1);
 
       expect(result).toEqual(created);
-      expect(mockS3.upload).toHaveBeenCalledWith(
-        expect.stringContaining('receipts/'),
-        expect.any(Buffer),
-        'application/pdf',
-      );
-      expect(mockTx.receipt.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
+      expect(mockPrisma.receipt.create).toHaveBeenCalledWith({
+        data: {
           paymentId: 1,
-          receiptNo: 'REC-2026-00004',
-        }),
+          receiptNo: `REC-${year}-00004`,
+          s3Key: `receipts/1/REC-${year}-00004.pdf`,
+        },
       });
     });
 
     it('should start at 1 when no previous receipt exists for the year', async () => {
-      mockPrisma.receipt.findUnique.mockResolvedValue(null);
-      mockPrisma.payment.findUnique.mockResolvedValue(payment);
-      mockTx.receipt.findFirst.mockResolvedValue(null);
-      mockTx.receipt.create.mockResolvedValue({
-        id: 1,
-        receiptNo: 'REC-2026-00001',
-      });
+      givenNewReceipt();
+      mockPrisma.receipt.findFirst.mockResolvedValue(null);
+      mockPrisma.receipt.create.mockResolvedValue({ id: 1 });
 
       await service.generate(1);
 
-      expect(mockTx.receipt.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          receiptNo: expect.stringContaining('-00001'),
-        }),
+      expect(mockPrisma.receipt.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ receiptNo: `REC-${year}-00001` }),
       });
     });
 
     it('charge le local, le locataire et le bail avec le paiement', async () => {
-      mockPrisma.receipt.findUnique.mockResolvedValue(null);
-      mockPrisma.payment.findUnique.mockResolvedValue(payment);
-      mockTx.receipt.findFirst.mockResolvedValue(null);
-      mockTx.receipt.create.mockResolvedValue({
-        id: 1,
-        receiptNo: 'REC-2026-00001',
-      });
+      givenNewReceipt();
+      mockPrisma.receipt.findFirst.mockResolvedValue(null);
+      mockPrisma.receipt.create.mockResolvedValue({ id: 1 });
 
       await service.generate(1);
 
@@ -139,6 +130,84 @@ describe('ReceiptsService', () => {
           paymentLines: { include: { rentDue: true } },
         },
       });
+    });
+
+    it("n'envoie rien sur S3 dans une transaction", async () => {
+      givenNewReceipt();
+      mockPrisma.receipt.findFirst.mockResolvedValue(null);
+      mockPrisma.receipt.create.mockResolvedValue({ id: 1 });
+
+      await service.generate(1);
+
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('envoie le PDF avant de créer le reçu, sous une clé propre au paiement', async () => {
+      givenNewReceipt();
+      mockPrisma.receipt.findFirst.mockResolvedValue(null);
+      mockPrisma.receipt.create.mockResolvedValue({ id: 1 });
+
+      await service.generate(1);
+
+      expect(mockS3.upload).toHaveBeenCalledWith(
+        `receipts/1/REC-${year}-00001.pdf`,
+        Buffer.from(`pdf REC-${year}-00001`),
+        'application/pdf',
+      );
+      expect(mockS3.upload.mock.invocationCallOrder[0]).toBeLessThan(
+        mockPrisma.receipt.create.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("ne crée pas de reçu si l'envoi sur S3 échoue", async () => {
+      givenNewReceipt();
+      mockPrisma.receipt.findFirst.mockResolvedValue(null);
+      mockS3.upload.mockRejectedValueOnce(new Error('S3 down'));
+
+      await expect(service.generate(1)).rejects.toThrow('S3 down');
+      expect(mockPrisma.receipt.create).not.toHaveBeenCalled();
+    });
+
+    it('reprend le numéro suivant si un autre paiement a pris le même', async () => {
+      givenNewReceipt();
+      mockPrisma.receipt.findFirst
+        .mockResolvedValueOnce({ receiptNo: `REC-${year}-00003` })
+        .mockResolvedValueOnce({ receiptNo: `REC-${year}-00004` });
+      const created = { id: 2, paymentId: 1, receiptNo: `REC-${year}-00005` };
+      mockPrisma.receipt.create
+        .mockRejectedValueOnce(uniqueViolation())
+        .mockResolvedValueOnce(created);
+
+      const result = await service.generate(1);
+
+      expect(result).toEqual(created);
+      expect(mockS3.upload).toHaveBeenLastCalledWith(
+        `receipts/1/REC-${year}-00005.pdf`,
+        Buffer.from(`pdf REC-${year}-00005`),
+        'application/pdf',
+      );
+      expect(mockPrisma.receipt.create).toHaveBeenLastCalledWith({
+        data: {
+          paymentId: 1,
+          receiptNo: `REC-${year}-00005`,
+          s3Key: `receipts/1/REC-${year}-00005.pdf`,
+        },
+      });
+    });
+
+    it('renvoie le reçu créé en même temps pour le même paiement', async () => {
+      const raced = { id: 7, paymentId: 1, receiptNo: `REC-${year}-00004` };
+      mockPrisma.receipt.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(raced);
+      mockPrisma.payment.findUnique.mockResolvedValue(payment);
+      mockPrisma.receipt.findFirst.mockResolvedValue(null);
+      mockPrisma.receipt.create.mockRejectedValueOnce(uniqueViolation());
+
+      const result = await service.generate(1);
+
+      expect(result).toEqual(raced);
+      expect(mockPrisma.receipt.create).toHaveBeenCalledTimes(1);
     });
 
     it('should throw NotFoundException when payment does not exist', async () => {

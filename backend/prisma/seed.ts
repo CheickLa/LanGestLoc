@@ -739,7 +739,7 @@ async function main() {
       create: {
         paymentId: allPayments[i].id,
         receiptNo,
-        s3Key: `receipts/${year}/${receiptNo}.pdf`,
+        s3Key: `receipts/${allPayments[i].id}/${receiptNo}.pdf`,
       },
     });
   }

@@ -401,6 +401,7 @@ async function main() {
   const receipt = await req('GET', `/receipts/payment/${payId}`, { token: adminToken });
   expect('GET /receipts/payment/:paymentId → 200', receipt, 200);
   const receiptId = receipt.json?.id;
+  check('la clé S3 du reçu contient l\'id du paiement', receipt.json?.s3Key?.startsWith(`receipts/${payId}/`), `s3Key=${receipt.json?.s3Key}`);
   if (receiptId) {
     const dl = await req('GET', `/receipts/${receiptId}/download`, { token: adminToken });
     const isPdf = (dl.headers.get('content-type') || '').includes('pdf');
