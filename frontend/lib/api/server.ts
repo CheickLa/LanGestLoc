@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { redirect } from "next/navigation";
 
 import { AUTH_COOKIE_NAME } from "@/lib/auth";
 
@@ -29,6 +30,48 @@ export async function backendFetch<T>(path: string): Promise<T> {
   }
 
   return (await response.json()) as T;
+}
+
+export type Paginated<T> = {
+  items: T[];
+  total: number;
+  skip: number;
+  take: number;
+};
+
+/** Nombre de lignes par page des tableaux */
+const PAGE_SIZE = 20;
+
+/**
+ * Page d'une liste lue depuis les paramètres d'URL `skip` et `q`. Le chemin est
+ * le même côté API et côté front (`/tenants`…). Une page vide au-delà de la fin
+ * (dernier élément supprimé, `skip` saisi à la main) renvoie à la dernière page.
+ */
+export async function backendFetchPage<T>(
+  path: string,
+  { skip: skipParam, q }: { skip?: string; q?: string },
+): Promise<{ data: Paginated<T>; search: string }> {
+  const skip = Math.max(0, Number(skipParam ?? 0) || 0);
+  const search = (q ?? "").trim();
+
+  const params = new URLSearchParams({
+    skip: String(skip),
+    take: String(PAGE_SIZE),
+  });
+  if (search) params.set("search", search);
+
+  const data = await backendFetch<Paginated<T>>(`${path}?${params.toString()}`);
+
+  if (data.items.length === 0 && skip > 0 && data.total > 0) {
+    const lastSkip = Math.floor((data.total - 1) / PAGE_SIZE) * PAGE_SIZE;
+    const target = new URLSearchParams();
+    if (search) target.set("q", search);
+    if (lastSkip > 0) target.set("skip", String(lastSkip));
+    const query = target.toString();
+    redirect(query ? `${path}?${query}` : path);
+  }
+
+  return { data, search };
 }
 
 /** Taille de page maximale acceptée par le backend (`PaginationDto.take`) */
