@@ -38,6 +38,15 @@ export function monthLabel(ym: string): string {
   }).format(new Date(Date.UTC(y, m - 1, 1)));
 }
 
+/** "2026-07" → "juil.". */
+export function monthShortLabel(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  return new Intl.DateTimeFormat("fr-FR", {
+    month: "short",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(y, m - 1, 1)));
+}
+
 /** "2026-02" → "2026-02-01". */
 export function firstDayOf(ym: string): string {
   return `${ym}-01`;

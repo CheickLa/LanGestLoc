@@ -50,6 +50,8 @@
   --color-neutral: var(--neutral-bg);
   --color-neutral-foreground: var(--neutral-fg);
   --color-faint: var(--faint);
+  --color-chart-paid: var(--chart-paid);
+  --color-chart-pending: var(--chart-pending);
   --color-canvas: var(--canvas);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
@@ -88,6 +90,11 @@
   --faint: #8a92a1;
   --canvas: #eef1f6;
   --card-shadow: 0 1px 2px -1px rgb(14 23 38 / 0.06), 0 6px 16px -4px rgb(14 23 38 / 0.05);
+  --paper-shadow: 0 2px 4px rgb(14 23 38 / 0.08), 0 30px 60px -22px rgb(14 23 38 / 0.4);
+  --paper-shadow-soft: 0 1px 3px rgb(14 23 38 / 0.08), 0 20px 44px -22px rgb(14 23 38 / 0.3);
+  --screen-shadow: 0 2px 6px rgb(14 23 38 / 0.06), 0 30px 70px -30px rgb(14 23 38 / 0.35);
+  --chart-paid: #3f8f2a;
+  --chart-pending: #7fa6f0;
   --success-bg: #eaf3de;
   --success-fg: #27500a;
   --warning-bg: #faeeda;
