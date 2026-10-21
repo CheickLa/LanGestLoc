@@ -3,7 +3,12 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import type { components } from "@/lib/api/schema";
-import { AUTH_COOKIE_NAME, LOGIN_PATH, LOGOUT_PATH } from "@/lib/auth";
+import {
+  AUTH_COOKIE_NAME,
+  DEFAULT_AUTHENTICATED_PATH,
+  LOGIN_PATH,
+  LOGOUT_PATH,
+} from "@/lib/auth";
 
 type UserEntity = components["schemas"]["UserEntity"];
 
@@ -53,6 +58,12 @@ export async function requireUser(): Promise<UserEntity> {
   if (session.status === "rejected") redirect(LOGOUT_PATH);
 
   redirect(LOGIN_PATH);
+}
+
+export async function requireAdmin(): Promise<UserEntity> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") redirect(DEFAULT_AUTHENTICATED_PATH);
+  return user;
 }
 
 export type { UserEntity };

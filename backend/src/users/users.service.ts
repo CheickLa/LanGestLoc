@@ -120,10 +120,14 @@ export class UsersService {
     if (
       dto.name === undefined &&
       dto.email === undefined &&
-      dto.role === undefined
+      dto.role === undefined &&
+      dto.password === undefined
     ) {
       throw new BadRequestException('Aucune donnée à mettre à jour');
     }
+
+    const hashedPassword =
+      dto.password !== undefined ? await hashPassword(dto.password) : undefined;
 
     try {
       return await this.prisma.$transaction(
@@ -152,6 +156,7 @@ export class UsersService {
               ...(dto.name !== undefined && { name: dto.name }),
               ...(dto.email !== undefined && { email: dto.email }),
               ...(dto.role !== undefined && { role: dto.role }),
+              ...(hashedPassword !== undefined && { password: hashedPassword }),
             },
             select: userSafeSelect,
           });

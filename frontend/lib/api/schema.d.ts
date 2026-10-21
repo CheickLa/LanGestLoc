@@ -1257,6 +1257,8 @@ export interface components {
              * @enum {string}
              */
             role?: "ADMIN" | "USER";
+            /** @example P@ssw0rd! */
+            password?: string;
         };
         HealthEntity: {
             /**

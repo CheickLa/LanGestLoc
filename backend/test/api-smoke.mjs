@@ -941,6 +941,56 @@ async function main() {
   });
   expect('POST /auth/register en tant que USER → 403', userForbidRegister, 403);
 
+  // Hors paiements et profil, le USER est en lecture seule
+  const adminOnly = [
+    ['PATCH', `/locals/${local1.id}`],
+    ['DELETE', `/locals/${local1.id}`],
+    ['POST', '/tenants'],
+    ['PATCH', `/tenants/${tenant1.json.id}`],
+    ['DELETE', `/tenants/${tenant1.json.id}`],
+    ['POST', '/contracts'],
+    ['PATCH', `/contracts/${c1}/terminate`],
+    ['PATCH', `/contracts/${c1}/cancel`],
+    ['POST', '/rents'],
+    ['POST', '/rent-dues/generate'],
+    ['POST', '/rent-dues/cron/generate'],
+    ['POST', '/rent-dues/cron/mark-late'],
+    ['GET', `/users/${createdUser?.id ?? 1}`],
+    ['PATCH', `/users/${createdUser?.id ?? 1}`],
+    ['DELETE', `/users/${createdUser?.id ?? 1}`],
+  ];
+  for (const [method, path] of adminOnly) {
+    expect(
+      `${method} ${path} en tant que USER → 403`,
+      await req(method, path, { token: userToken, body: method === 'GET' ? undefined : {} }),
+      403,
+    );
+  }
+
+  // L'ADMIN fixe le mot de passe d'un agent
+  const agent = (usersList.json?.items || []).find((u) => u.email === agentEmail);
+  const resetPwd = 'R3set-P@ss';
+  expect(
+    "PATCH /users/:id avec un mot de passe trop court → 400",
+    await req('PATCH', `/users/${agent?.id}`, { token: adminToken, body: { password: 'court' } }),
+    400,
+  );
+  expect(
+    "PATCH /users/:id (ADMIN change le mot de passe de l'agent) → 200",
+    await req('PATCH', `/users/${agent?.id}`, { token: adminToken, body: { password: resetPwd } }),
+    200,
+  );
+  expect(
+    "login de l'agent avec l'ancien mot de passe → 401",
+    await req('POST', '/auth/login', { body: { email: agentEmail, password: userPwd } }),
+    401,
+  );
+  expect(
+    "login de l'agent avec le nouveau mot de passe → 200",
+    await req('POST', '/auth/login', { body: { email: agentEmail, password: resetPwd } }),
+    200,
+  );
+
   if (createdUser) {
     const adminPatchUser = await req('PATCH', `/users/${createdUser.id}`, {
       token: adminToken,
