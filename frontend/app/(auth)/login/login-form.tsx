@@ -114,6 +114,7 @@ export function LoginForm() {
                   <Input
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
+                    placeholder="••••••••"
                     className="h-11 pr-10"
                     disabled={isSubmitting}
                     {...field}
