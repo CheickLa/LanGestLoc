@@ -28,4 +28,12 @@ export class AdminUpdateUserDto {
   @IsOptional()
   @IsEnum(Role)
   role?: Role;
+
+  @ApiPropertyOptional({ example: 'P@ssw0rd!', minLength: 8 })
+  @IsOptional()
+  @IsString()
+  @MinLength(8, {
+    message: 'Le mot de passe doit contenir au moins 8 caractères',
+  })
+  password?: string;
 }

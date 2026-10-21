@@ -307,6 +307,22 @@ describe('UsersService', () => {
       expect(result).toEqual(updated);
     });
 
+    it('should hash the password set by the ADMIN', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 2, role: Role.USER });
+      mockPrisma.user.update.mockResolvedValue({ ...userSafe, id: 2 });
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-new');
+
+      await service.adminUpdate(2, { password: 'newPass123' });
+
+      expect(bcrypt.hash).toHaveBeenCalledWith('newPass123', 10);
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 2 },
+          data: { password: 'hashed-new' },
+        }),
+      );
+    });
+
     it('should throw BadRequestException when demoting the last ADMIN', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: 1, role: Role.ADMIN });
       mockPrisma.user.count.mockResolvedValue(0);
