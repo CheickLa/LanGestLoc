@@ -93,6 +93,7 @@ export function LoginForm() {
                   inputMode="email"
                   autoComplete="email"
                   placeholder="vous@exemple.com"
+                  className="h-11"
                   disabled={isSubmitting}
                   {...field}
                 />
@@ -113,7 +114,7 @@ export function LoginForm() {
                   <Input
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
-                    className="pr-10"
+                    className="h-11 pr-10"
                     disabled={isSubmitting}
                     {...field}
                   />
@@ -141,7 +142,7 @@ export function LoginForm() {
           )}
         />
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
+        <Button type="submit" className="mt-1 h-11 w-full rounded-[10px] text-[15px] font-semibold" disabled={isSubmitting}>
           {isSubmitting ? (
             <>
               <Loader2 className="animate-spin" />
