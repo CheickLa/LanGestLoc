@@ -1,5 +1,7 @@
 export const AUTH_COOKIE_NAME = "langestloc_token";
 
+export const HOME_PATH = "/";
+
 export const LOGIN_PATH = "/login";
 
 export const LOGOUT_PATH = "/api/auth/logout";
