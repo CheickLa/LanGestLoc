@@ -107,7 +107,7 @@ export function RentRegister({ children }: { children: React.ReactNode }) {
                   </th>
                   {r.cells === null ? (
                     <td colSpan={REGISTER_MONTHS.length}>
-                      <span className="flex h-11 items-center rounded-lg bg-neutral px-3.5 text-[13px] font-medium text-neutral-foreground">
+                      <span className="flex h-11 items-center rounded-lg bg-warning px-3.5 text-[13px] font-medium text-warning-foreground">
                         Vacant : aucun contrat en cours
                       </span>
                     </td>
