@@ -1,13 +1,14 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, type LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 export type Column<T> = {
   key: string;
   header: ReactNode;
+  icon?: LucideIcon;
   cell: (row: T) => ReactNode;
   className?: string;
 };
@@ -34,6 +35,16 @@ export type DataTableProps<T> = {
   emptyState?: ReactNode;
 };
 
+export function HeaderLabel({ icon: Icon, children }: { icon?: LucideIcon; children: ReactNode }) {
+  if (!Icon) return children;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <Icon className="size-[13px] shrink-0" strokeWidth={1.8} aria-hidden />
+      {children}
+    </span>
+  );
+}
+
 export function DataTable<T>({
   title,
   action,
@@ -50,27 +61,29 @@ export function DataTable<T>({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-background shadow-[var(--card-shadow)]">
-      {/* Titre de la table : le titre visible vit dans le header de page (évite le doublon) */}
+      {/* Titre pour les lecteurs d'écran : le titre visible est hors de la table */}
       <h2 className="sr-only">{title}</h2>
 
       {/* Barre d'outils : recherche + action principale */}
-      <div className="flex items-center justify-between gap-3 px-4 py-4 md:px-5">
-        {search ? (
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground focus-within:border-primary md:max-w-sm">
-            <Search className="size-4 shrink-0" />
-            <input
-              type="search"
-              value={search.value}
-              onChange={(event) => search.onChange(event.target.value)}
-              placeholder={search.placeholder ?? "Rechercher…"}
-              className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-        ) : (
-          <span />
-        )}
-        {action}
-      </div>
+      {search || action ? (
+        <div className="flex items-center justify-between gap-3 px-4 py-4 md:px-5">
+          {search ? (
+            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground focus-within:border-primary md:max-w-sm">
+              <Search className="size-4 shrink-0" />
+              <input
+                type="search"
+                value={search.value}
+                onChange={(event) => search.onChange(event.target.value)}
+                placeholder={search.placeholder ?? "Rechercher…"}
+                className="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          ) : (
+            <span />
+          )}
+          {action}
+        </div>
+      ) : null}
 
       {/* Desktop : table */}
       <div className="hidden md:block">
@@ -88,7 +101,7 @@ export function DataTable<T>({
                       column.className,
                     )}
                   >
-                    {column.header}
+                    <HeaderLabel icon={column.icon}>{column.header}</HeaderLabel>
                   </th>
                 ))}
               </tr>
