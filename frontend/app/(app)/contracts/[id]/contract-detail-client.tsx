@@ -10,10 +10,22 @@ import {
   Ban,
   FileText,
   CreditCard,
+  Banknote,
+  Calendar,
+  CalendarArrowDown,
+  CalendarArrowUp,
+  CalendarClock,
+  CalendarDays,
+  CircleDot,
+  Receipt,
+  Tag,
+  Wallet,
+  type LucideIcon,
 } from "lucide-react";
 
 import type { components } from "@/lib/api/schema";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { HeaderLabel } from "@/components/ui/data-table";
 import {
   Tabs,
   TabsContent,
@@ -190,7 +202,12 @@ export function ContractDetailClient({
 
           <TabsContent value="echeances">
             <SimpleTable
-              head={["Mois", "Montant", "Échéance", "Statut"]}
+              head={[
+                { label: "Mois", icon: CalendarDays },
+                { label: "Montant", icon: Banknote },
+                { label: "Échéance", icon: CalendarClock },
+                { label: "Statut", icon: CircleDot },
+              ]}
               empty="Aucune échéance."
               rows={rentDues.map((d) => [
                 monthLabel(d.month),
@@ -203,7 +220,12 @@ export function ContractDetailClient({
 
           <TabsContent value="loyers">
             <SimpleTable
-              head={["Montant", "Effectif du", "Au", ""]}
+              head={[
+                { label: "Montant", icon: Banknote },
+                { label: "Effectif du", icon: CalendarArrowUp },
+                { label: "Au", icon: CalendarArrowDown },
+                { label: "" },
+              ]}
               empty="Aucun loyer."
               rows={rents.map((r) => [
                 <span key="a" className="tabular-nums">{formatGNF(r.amount)}</span>,
@@ -218,7 +240,13 @@ export function ContractDetailClient({
 
           <TabsContent value="paiements">
             <SimpleTable
-              head={["Date", "Montant", "Méthode", "Type", "Reçu"]}
+              head={[
+                { label: "Date", icon: Calendar },
+                { label: "Montant", icon: Banknote },
+                { label: "Méthode", icon: Wallet },
+                { label: "Type", icon: Tag },
+                { label: "Reçu", icon: Receipt },
+              ]}
               empty="Aucun paiement."
               rows={payments.map((p) => [
                 formatDate(p.paymentDate),
@@ -297,7 +325,7 @@ function SimpleTable({
   rows,
   empty,
 }: {
-  head: string[];
+  head: { label: string; icon?: LucideIcon }[];
   rows: React.ReactNode[][];
   empty: string;
 }) {
@@ -305,30 +333,33 @@ function SimpleTable({
     return <p className="px-5 py-10 text-center text-sm text-muted-foreground">{empty}</p>;
   }
   return (
-    <table className="w-full border-collapse text-sm">
-      <thead>
-        <tr>
-          {head.map((h, i) => (
-            <th
-              key={i}
-              className="border-y border-border bg-muted/60 px-4 py-2.5 text-left text-[11px] font-normal uppercase tracking-wide text-faint"
-            >
-              {h}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((cells, r) => (
-          <tr key={r} className="last:border-0">
-            {cells.map((c, i) => (
-              <td key={i} className="border-b border-border/60 px-4 py-3 align-middle">
-                {c}
-              </td>
+    // Sur téléphone, le tableau défile seul au lieu d'élargir la page.
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            {head.map((h, i) => (
+              <th
+                key={i}
+                className="whitespace-nowrap border-y border-border bg-muted/60 px-4 py-2.5 text-left text-[11px] font-normal uppercase tracking-wide text-faint"
+              >
+                <HeaderLabel icon={h.icon}>{h.label}</HeaderLabel>
+              </th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((cells, r) => (
+            <tr key={r} className="last:border-0">
+              {cells.map((c, i) => (
+                <td key={i} className="whitespace-nowrap border-b border-border/60 px-4 py-3 align-middle">
+                  {c}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

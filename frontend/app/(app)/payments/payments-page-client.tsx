@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Plus } from "lucide-react";
+import { Banknote, Calendar, FileText, Plus, Receipt, Store, Tag, User, Wallet } from "lucide-react";
 
 import type { components } from "@/lib/api/schema";
 import { PaymentDialog, type PaymentContract } from "@/components/payments/payment-dialog";
@@ -44,17 +44,20 @@ export function PaymentsPageClient({
     {
       key: "date",
       header: "Date",
+      icon: Calendar,
       className: "whitespace-nowrap",
       cell: (row) => <span className="text-muted-foreground">{formatDate(row.paymentDate)}</span>,
     },
     {
       key: "local",
       header: "Local",
+      icon: Store,
       cell: (row) => <span className="text-foreground">{row.contract.local.name}</span>,
     },
     {
       key: "tenant",
       header: "Locataire",
+      icon: User,
       cell: (row) => (
         <div>
           <div className="text-foreground">{row.contract.tenant.name}</div>
@@ -69,6 +72,7 @@ export function PaymentsPageClient({
     {
       key: "type",
       header: "Type",
+      icon: Tag,
       cell: (row) => (
         <div>
           <div className="text-foreground">{PAYMENT_TYPE_LABEL[row.type]}</div>
@@ -83,12 +87,14 @@ export function PaymentsPageClient({
     {
       key: "amount",
       header: "Montant",
+      icon: Banknote,
       className: "text-right whitespace-nowrap",
       cell: (row) => <span className="tabular-nums">{formatGNF(row.amount)}</span>,
     },
     {
       key: "method",
       header: "Méthode",
+      icon: Wallet,
       cell: (row) => (
         <span className="text-muted-foreground">{PAYMENT_METHOD_LABEL[row.paymentMethod]}</span>
       ),
@@ -96,6 +102,7 @@ export function PaymentsPageClient({
     {
       key: "receipt",
       header: "Reçu",
+      icon: Receipt,
       className: "w-px whitespace-nowrap text-center",
       cell: (row) => (
         <a

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { CircleDot, Pencil, Plus, Settings2, Store, Trash2, User } from "lucide-react";
 
 import type { components } from "@/lib/api/schema";
 import { useSearchQuery } from "@/lib/use-search-query";
@@ -51,6 +51,7 @@ export function LocalsPageClient({
     {
       key: "local",
       header: "Local",
+      icon: Store,
       cell: (row) => (
         <div>
           <div className="font-mono text-[11.5px] uppercase tracking-wide text-muted-foreground">
@@ -63,6 +64,7 @@ export function LocalsPageClient({
     {
       key: "tenant",
       header: "Locataire",
+      icon: User,
       cell: (row) =>
         row.currentTenant ? (
           <span className="text-muted-foreground">{row.currentTenant.name}</span>
@@ -73,6 +75,7 @@ export function LocalsPageClient({
     {
       key: "status",
       header: "Statut",
+      icon: CircleDot,
       cell: (row) => <StatusBadge status={row.status} />,
     },
     ...(isAdmin
@@ -80,6 +83,7 @@ export function LocalsPageClient({
           {
             key: "actions",
             header: "Actions",
+            icon: Settings2,
             className: "w-px whitespace-nowrap text-center",
             cell: (row: LocalListItem) => (
               <div className="inline-flex justify-center gap-1">
