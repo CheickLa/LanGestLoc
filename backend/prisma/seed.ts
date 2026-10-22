@@ -9,11 +9,16 @@ import {
   PaymentType,
   RentDueStatus,
   DepositStatus,
-  type Payment,
-  type RentDue,
 } from '../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import {
+  CreateBucketCommand,
+  HeadBucketCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import * as bcrypt from 'bcrypt';
+import { buildReceiptPdf } from '@/receipts/pdf/pdf-builder';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -23,26 +28,479 @@ if (!connectionString) {
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Jeu de données ───────────────────────────────────────────────────────────
+//
+// Un centre commercial de Conakry : 26 locaux, une quarantaine de locataires,
+// environ deux ans et demi d'historique jusqu'à aujourd'hui. Les dates sont
+// calculées depuis la date du jour : le tableau de bord a toujours six mois
+// d'encaissements, des retards et des loyers du mois en cours.
+// Tirage pseudo-aléatoire à graine fixe : deux seeds le même jour donnent la même base.
 
-/** Retourne le 1er du mois à 00:00:00 UTC */
-function firstOfMonth(year: number, month: number): Date {
-  return new Date(Date.UTC(year, month - 1, 1));
+const NOW = new Date();
+const CURRENT = NOW.getUTCFullYear() * 12 + NOW.getUTCMonth();
+const HISTORY = 30;
+
+let state = 20261022;
+function random(): number {
+  state = (state + 0x6d2b79f5) | 0;
+  let t = Math.imul(state ^ (state >>> 15), 1 | state);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+const int = (min: number, max: number) =>
+  min + Math.floor(random() * (max - min + 1));
+const chance = (p: number) => random() < p;
+function pick<T>(items: readonly T[]): T {
+  return items[Math.floor(random() * items.length)];
+}
+function weighted<T>(entries: readonly [T, number][]): T {
+  let r = random() * entries.reduce((sum, [, w]) => sum + w, 0);
+  for (const [value, w] of entries) {
+    r -= w;
+    if (r < 0) return value;
+  }
+  return entries[entries.length - 1][0];
 }
 
-/** Retourne le 5 du mois donné à 00:00:00 UTC (utilisé comme date de paiement). */
-function fifthOfMonth(year: number, month: number): Date {
-  return new Date(Date.UTC(year, month - 1, 5));
+// Un mois est un index (année × 12 + mois 0-based), en UTC.
+const monthStart = (m: number) =>
+  new Date(Date.UTC(Math.floor(m / 12), m % 12, 1));
+const lastDayOf = (m: number) =>
+  new Date(Date.UTC(Math.floor(m / 12), (m % 12) + 1, 0));
+const dueDateOf = (m: number) =>
+  new Date(Date.UTC(Math.floor(m / 12), (m % 12) + 1, 5));
+function dayOf(m: number, day: number): Date {
+  const last = lastDayOf(m).getUTCDate();
+  return new Date(
+    Date.UTC(Math.floor(m / 12), m % 12, Math.min(day, last), 10, int(0, 59)),
+  );
+}
+const roundTo = (amount: number, step: number) =>
+  Math.round(amount / step) * step;
+
+const LOCALS = [
+  ...['A', 'B', 'C'].flatMap((bloc) =>
+    Array.from({ length: 8 }, (_, i) => ({
+      code: `BTQ-${bloc}${String(i + 1).padStart(2, '0')}`,
+      name: `Boutique ${bloc}${i + 1}`,
+      rent: roundTo(int(900_000, 2_200_000), 50_000),
+    })),
+  ),
+  { code: 'MAG-01', name: 'Magasin 1', rent: 3_500_000 },
+  { code: 'MAG-02', name: 'Magasin 2', rent: 3_000_000 },
+];
+
+const TENANTS: {
+  name: string;
+  activity: string;
+  birthPlace: string;
+  born: string;
+}[] = [
+  {
+    name: 'Mamadou Saliou Diallo',
+    activity: 'Vente de tissus et wax',
+    birthPlace: 'Labé',
+    born: '1979-04-12',
+  },
+  {
+    name: 'Fatoumata Binta Bah',
+    activity: 'Cosmétiques et parfums',
+    birthPlace: 'Pita',
+    born: '1991-08-03',
+  },
+  {
+    name: 'Ibrahima Sory Camara',
+    activity: 'Téléphonie et accessoires',
+    birthPlace: 'Conakry',
+    born: '1988-01-25',
+  },
+  {
+    name: 'Aïssatou Barry',
+    activity: 'Couture et retouches',
+    birthPlace: 'Mamou',
+    born: '1985-11-17',
+  },
+  {
+    name: 'Alpha Oumar Sow',
+    activity: 'Alimentation générale',
+    birthPlace: 'Dalaba',
+    born: '1976-06-30',
+  },
+  {
+    name: 'Kadiatou Condé',
+    activity: 'Pagnes et bazins',
+    birthPlace: 'Kankan',
+    born: '1983-02-14',
+  },
+  {
+    name: 'Sékou Kourouma',
+    activity: 'Quincaillerie',
+    birthPlace: 'Siguiri',
+    born: '1974-09-08',
+  },
+  {
+    name: 'Mariama Sylla',
+    activity: 'Salon de coiffure',
+    birthPlace: 'Boké',
+    born: '1993-05-21',
+  },
+  {
+    name: 'Lansana Keïta',
+    activity: 'Électroménager',
+    birthPlace: 'Kouroussa',
+    born: '1980-12-02',
+  },
+  {
+    name: 'Hawa Touré',
+    activity: 'Chaussures et sacs',
+    birthPlace: 'Conakry',
+    born: '1990-03-19',
+  },
+  {
+    name: 'Thierno Amadou Baldé',
+    activity: 'Librairie et papeterie',
+    birthPlace: 'Labé',
+    born: '1982-07-11',
+  },
+  {
+    name: 'Oumou Kalsoum Soumah',
+    activity: 'Restauration rapide',
+    birthPlace: 'Dubréka',
+    born: '1987-10-05',
+  },
+  {
+    name: 'Mohamed Lamine Cissé',
+    activity: 'Transfert d’argent',
+    birthPlace: 'Kindia',
+    born: '1984-01-29',
+  },
+  {
+    name: 'Djénabou Diallo',
+    activity: 'Bijouterie',
+    birthPlace: 'Télimélé',
+    born: '1989-06-16',
+  },
+  {
+    name: 'Moussa Traoré',
+    activity: 'Pièces détachées auto',
+    birthPlace: 'Kankan',
+    born: '1977-03-07',
+  },
+  {
+    name: 'Fanta Kaba',
+    activity: 'Friperie',
+    birthPlace: 'Faranah',
+    born: '1992-09-24',
+  },
+  {
+    name: 'Abdoulaye Bangoura',
+    activity: 'Matériel informatique',
+    birthPlace: 'Conakry',
+    born: '1986-05-13',
+  },
+  {
+    name: 'Nènè Aïssata Sow',
+    activity: 'Produits cosmétiques naturels',
+    birthPlace: 'Mamou',
+    born: '1994-12-08',
+  },
+  {
+    name: 'Kerfalla Camara',
+    activity: 'Boissons et glaces',
+    birthPlace: 'Coyah',
+    born: '1981-08-27',
+  },
+  {
+    name: 'Mabinty Sylla',
+    activity: 'Vente de pagnes',
+    birthPlace: 'Forécariah',
+    born: '1988-04-04',
+  },
+  {
+    name: 'Ousmane Konaté',
+    activity: 'Vêtements pour hommes',
+    birthPlace: 'Kissidougou',
+    born: '1983-11-30',
+  },
+  {
+    name: 'Hadja Mariama Barry',
+    activity: 'Épicerie fine',
+    birthPlace: 'Pita',
+    born: '1972-02-20',
+  },
+  {
+    name: 'Fodé Momo Soumah',
+    activity: 'Atelier de réparation de téléphones',
+    birthPlace: 'Conakry',
+    born: '1995-07-09',
+  },
+  {
+    name: 'Aminata Fofana',
+    activity: 'Articles pour enfants',
+    birthPlace: 'Kankan',
+    born: '1990-10-15',
+  },
+  {
+    name: 'Elhadj Boubacar Diallo',
+    activity: 'Grossiste en riz et huile',
+    birthPlace: 'Gaoual',
+    born: '1969-05-01',
+  },
+  {
+    name: 'Saran Kanté',
+    activity: 'Tissus brodés',
+    birthPlace: 'Siguiri',
+    born: '1986-03-23',
+  },
+  {
+    name: 'Mory Doumbouya',
+    activity: 'Quincaillerie et peinture',
+    birthPlace: 'Kérouané',
+    born: '1979-12-12',
+  },
+  {
+    name: 'Kadidiatou Baldé',
+    activity: 'Mode féminine',
+    birthPlace: 'Labé',
+    born: '1997-01-06',
+  },
+  {
+    name: 'Yacouba Haba',
+    activity: 'Pharmacie vétérinaire',
+    birthPlace: 'N’Zérékoré',
+    born: '1978-08-18',
+  },
+  {
+    name: 'Djéné Kourouma',
+    activity: 'Vaisselle et ustensiles',
+    birthPlace: 'Kankan',
+    born: '1985-06-27',
+  },
+  {
+    name: 'Alseny Bangoura',
+    activity: 'Cybercafé et impression',
+    birthPlace: 'Boffa',
+    born: '1992-02-09',
+  },
+  {
+    name: 'Rouguiatou Bah',
+    activity: 'Lingerie et accessoires',
+    birthPlace: 'Dalaba',
+    born: '1989-09-01',
+  },
+  {
+    name: 'Sidiki Cissé',
+    activity: 'Matériaux électriques',
+    birthPlace: 'Kindia',
+    born: '1980-04-16',
+  },
+  {
+    name: 'Mahawa Camara',
+    activity: 'Produits laitiers',
+    birthPlace: 'Fria',
+    born: '1991-11-22',
+  },
+  {
+    name: 'Pépé Loua',
+    activity: 'Café et snacks',
+    birthPlace: 'Macenta',
+    born: '1984-07-03',
+  },
+  {
+    name: 'Fatou Traoré',
+    activity: 'Tresses et perruques',
+    birthPlace: 'Conakry',
+    born: '1996-05-28',
+  },
+  {
+    name: 'Amadou Tidiane Sow',
+    activity: 'Montres et lunettes',
+    birthPlace: 'Tougué',
+    born: '1987-12-19',
+  },
+  {
+    name: 'Tiguidanké Diakité',
+    activity: 'Tissus et rideaux',
+    birthPlace: 'Mandiana',
+    born: '1982-03-11',
+  },
+  {
+    name: 'Ibrahima Kalil Konaté',
+    activity: 'Panneaux solaires',
+    birthPlace: 'Kankan',
+    born: '1985-09-14',
+  },
+  {
+    name: 'Marie Millimono',
+    activity: 'Boulangerie et pâtisserie',
+    birthPlace: 'Guéckédou',
+    born: '1990-01-31',
+  },
+];
+
+const METHODS: [PaymentMethod, number][] = [
+  [PaymentMethod.ORANGE_MONEY, 45],
+  [PaymentMethod.CASH, 35],
+  [PaymentMethod.MOBILE_MONEY, 20],
+];
+
+type Profile = 'monthly' | 'quarterly' | 'advance' | 'slow' | 'defaulter';
+
+type Plan = {
+  local: number;
+  tenant: number;
+  start: number;
+  /** Fin prévue (ACTIVE) ou fin effective (TERMINATED). */
+  end: number | null;
+  status: ContractStatus;
+  rent: number;
+  /** Mois de l'augmentation et nouveau montant. */
+  increase?: { from: number; amount: number };
+  profile: Profile;
+};
+
+// ── Plan d'occupation ────────────────────────────────────────────────────────
+
+function buildPlans(): Plan[] {
+  const plans: Plan[] = [];
+  const freeTenants = TENANTS.map((_, i) => i);
+  const takeTenant = () =>
+    freeTenants.splice(int(0, freeTenants.length - 1), 1)[0];
+  const order = LOCALS.map((_, i) => i).sort(() => random() - 0.5);
+
+  order.forEach((local, rank) => {
+    const base = LOCALS[local].rent;
+    // 3 locaux jamais loués, 3 libérés récemment, 8 avec un ancien locataire, le reste occupé.
+    const scenario =
+      rank < 3
+        ? 'empty'
+        : rank < 6
+          ? 'released'
+          : rank < 14
+            ? 'succession'
+            : 'occupied';
+    if (scenario === 'empty') return;
+
+    let nextStart = CURRENT - int(1, HISTORY - 2);
+    if (scenario === 'released' || scenario === 'succession') {
+      const start = CURRENT - int(HISTORY - 6, HISTORY);
+      const end =
+        scenario === 'released'
+          ? CURRENT - int(2, 4)
+          : Math.min(start + int(8, 16), CURRENT - 4);
+      plans.push({
+        local,
+        tenant: takeTenant(),
+        start,
+        end,
+        status: ContractStatus.TERMINATED,
+        rent: roundTo(base * 0.9, 50_000),
+        profile: chance(0.7) ? 'monthly' : 'quarterly',
+      });
+      if (scenario === 'released') return;
+      nextStart = Math.min(end + 1 + int(0, 2), CURRENT);
+    }
+
+    const profile = weighted<Profile>([
+      ['monthly', 50],
+      ['quarterly', 12],
+      ['advance', 10],
+      ['slow', 12],
+      ['defaulter', 16],
+    ]);
+    const plan: Plan = {
+      local,
+      tenant: takeTenant(),
+      start: nextStart,
+      end: chance(0.3) ? nextStart + pick([23, 35]) : null,
+      status: ContractStatus.ACTIVE,
+      rent: base,
+      profile,
+    };
+    if (plan.end !== null && plan.end <= CURRENT)
+      plan.end = CURRENT + int(3, 12);
+    // Pas d'augmentation pour qui paie plusieurs mois d'avance : ses mois sont déjà facturés.
+    if (
+      (profile === 'monthly' ||
+        profile === 'slow' ||
+        profile === 'defaulter') &&
+      CURRENT - plan.start >= 14 &&
+      chance(0.45)
+    ) {
+      plan.increase = {
+        from: plan.start + 12,
+        amount: roundTo(base * 1.1, 50_000),
+      };
+    }
+    plans.push(plan);
+  });
+
+  // Deux contrats annulés avant le premier loyer, sur des locaux restés libres à l'époque.
+  for (const months of [int(4, 9), int(12, 18)]) {
+    const start = CURRENT - months;
+    // Un mois n'est facturé qu'à un contrat : pas de contrat résilié du local après ce début.
+    const local = plans.find(
+      (p) =>
+        p.status === ContractStatus.ACTIVE &&
+        p.start > start + 1 &&
+        !plans.some(
+          (q) =>
+            q.local === p.local &&
+            q.status !== ContractStatus.ACTIVE &&
+            (q.end ?? Infinity) >= start,
+        ),
+    )?.local;
+    if (local === undefined) continue;
+    plans.push({
+      local,
+      tenant: takeTenant(),
+      start,
+      end: null,
+      status: ContractStatus.CANCELED,
+      rent: LOCALS[local].rent,
+      profile: 'monthly',
+    });
+  }
+  return plans;
 }
 
-/**
- * dueDate d'une échéance : le 5 du mois SUIVANT, comme generate() en production
- * (« le 05 du mois suivant »). `month` est 1-based, donc l'argument mois 0-based
- * de Date.UTC pointe déjà sur le mois suivant (rollover d'année géré par Date).
- */
-function dueDateForMonth(year: number, month: number): Date {
-  return new Date(Date.UTC(year, month, 5));
+/** Mois soldés par chaque paiement, dans l'ordre, du plus ancien au plus récent. */
+function schedulePayments(plan: Plan): { date: Date; months: number[] }[] {
+  if (plan.status === ContractStatus.CANCELED) return [];
+  const last =
+    plan.status === ContractStatus.TERMINATED ? (plan.end as number) : CURRENT;
+  // Un paiement à l'avance ne dépasse ni 12 mois après le mois en cours, ni la fin prévue.
+  const ceiling = Math.min(CURRENT + 12, plan.end ?? Infinity);
+  const stop = plan.profile === 'defaulter' ? CURRENT - int(0, 4) : Infinity;
+  const payments: { date: Date; months: number[] }[] = [];
+
+  let m = plan.start;
+  while (m <= last && m < stop) {
+    let size = 1;
+    let date = dayOf(m, int(1, 8));
+    if (plan.profile === 'quarterly') {
+      size = 3;
+      date = dayOf(m, int(1, 10));
+    } else if (plan.profile === 'advance') {
+      size = 6;
+      date = dayOf(m, int(1, 6));
+    } else if (plan.profile === 'slow') {
+      date = dayOf(m + 1, int(8, 25));
+    }
+    const months: number[] = [];
+    for (let k = m; k < m + size && k <= ceiling; k++) {
+      if (plan.status === ContractStatus.TERMINATED && k > last) break;
+      months.push(k);
+    }
+    if (date > NOW || months.length === 0) break;
+    payments.push({ date, months });
+    m += months.length;
+  }
+  return payments;
 }
+
+const rentAt = (plan: Plan, m: number) =>
+  plan.increase && m >= plan.increase.from ? plan.increase.amount : plan.rent;
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
@@ -52,712 +510,315 @@ async function main() {
     return;
   }
 
-  // ── 1. Users ─────────────────────────────────────────────────────────────
+  // ── 1. Utilisateurs ───────────────────────────────────────────────────────
 
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD;
-  const adminName = process.env.ADMIN_NAME ?? 'Administrateur';
-
   if (!adminEmail || !adminPassword) {
     throw new Error(
-      'ADMIN_EMAIL et ADMIN_PASSWORD doivent être définis dans les variables d\'environnement.',
+      "ADMIN_EMAIL et ADMIN_PASSWORD doivent être définis dans les variables d'environnement.",
     );
   }
 
-  const hashedAdminPwd = await bcrypt.hash(adminPassword, 10);
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
     update: {},
     create: {
-      name: adminName,
+      name: process.env.ADMIN_NAME ?? 'Administrateur',
       email: adminEmail,
-      password: hashedAdminPwd,
+      password: await bcrypt.hash(adminPassword, 10),
       role: Role.ADMIN,
     },
   });
-  console.log(`✓ Admin "${admin.email}"`);
 
-  const userEmail = process.env.USER_EMAIL;
+  const agents: { id: number }[] = [];
   const userPassword = process.env.USER_PASSWORD;
-  const userName = process.env.USER_NAME ?? 'Agent';
-
-  let user = admin; // fallback si pas de user configuré
-  if (userEmail && userPassword) {
-    const hashedUserPwd = await bcrypt.hash(userPassword, 10);
-    user = await prisma.user.upsert({
-      where: { email: userEmail },
-      update: {},
-      create: {
-        name: userName,
-        email: userEmail,
-        password: hashedUserPwd,
-        role: Role.USER,
-      },
-    });
-    console.log(`✓ User "${user.email}"`);
-  } else {
-    console.log('⏭ USER_EMAIL/USER_PASSWORD non définis, user seed ignoré');
+  if (process.env.USER_EMAIL && userPassword) {
+    const hashed = await bcrypt.hash(userPassword, 10);
+    const accounts = [
+      { email: process.env.USER_EMAIL, name: process.env.USER_NAME ?? 'Agent' },
+      { email: 'kadiatou.barry@langestloc.com', name: 'Kadiatou Barry' },
+      { email: 'moussa.conde@langestloc.com', name: 'Moussa Condé' },
+    ];
+    for (const account of accounts) {
+      agents.push(
+        await prisma.user.upsert({
+          where: { email: account.email },
+          update: {},
+          create: { ...account, password: hashed, role: Role.USER },
+        }),
+      );
+    }
   }
-
-  // ── 2. Locals (6) ───────────────────────────────────────────────────────
-  //  Les boutiques 5 et 6 restent VACANTES (aucun contrat) : elles servent à
-  //  tester la création d'un contrat (le formulaire ne propose que des locaux libres).
-
-  const localsData = [
-    { code: 'LOCAL-001', name: 'Boutique 1' },
-    { code: 'LOCAL-002', name: 'Boutique 2' },
-    { code: 'LOCAL-003', name: 'Boutique 3' },
-    { code: 'LOCAL-004', name: 'Boutique 4' },
-    { code: 'LOCAL-005', name: 'Boutique 5' },
-    { code: 'LOCAL-006', name: 'Boutique 6' },
+  const clerks: [number, number][] = [
+    [admin.id, 25],
+    ...agents.map((a): [number, number] => [a.id, 75 / agents.length]),
   ];
+  console.log(`✓ ${1 + agents.length} utilisateurs`);
 
-  const locals = await Promise.all(
-    localsData.map((data) =>
-      prisma.local.upsert({
-        where: { code: data.code },
-        update: {},
-        create: data,
-      }),
-    ),
-  );
-  console.log(`✓ ${locals.length} locaux`);
+  // ── 2. Locaux et locataires ──────────────────────────────────────────────
 
-  // ── 3. Tenants (7) ──────────────────────────────────────────────────────
-  //  Les 2 derniers locataires n'ont AUCUN contrat : ils servent à tester la
-  //  création d'un contrat (un locataire libre à rattacher à une boutique vacante).
-
-  const tenantsData = [
-    {
-      name: 'Ibrahima Soumah',
-      activity: 'Vente de tissus',
-      phone: '+224620000001',
-      dateOfBirth: new Date('1985-03-15'),
-      birthPlace: 'Conakry',
-      idNumber: 'GN-ID-000001',
-    },
-    {
-      name: 'Fatoumata Camara',
-      activity: 'Cosmétiques',
-      phone: '+224620000002',
-      dateOfBirth: new Date('1990-07-22'),
-      birthPlace: 'Kindia',
-      idNumber: 'GN-ID-000002',
-    },
-    {
-      name: 'Ousmane Barry',
-      activity: 'Alimentation générale',
-      phone: '+224620000003',
-      dateOfBirth: new Date('1978-11-10'),
-      birthPlace: 'Labé',
-      idNumber: 'GN-ID-000003',
-    },
-    {
-      name: 'Aissatou Bah',
-      activity: 'Téléphonie mobile',
-      phone: '+224620000004',
-      dateOfBirth: new Date('1992-01-28'),
-      birthPlace: 'Kankan',
-      idNumber: 'GN-ID-000004',
-    },
-    {
-      name: 'Mamadou Sylla',
-      activity: 'Quincaillerie',
-      phone: '+224620000005',
-      dateOfBirth: new Date('1980-06-05'),
-      birthPlace: 'Boké',
-      idNumber: 'GN-ID-000005',
-    },
-    // Locataires libres (aucun contrat) — disponibles pour créer un nouveau bail.
-    {
-      name: 'Mariama Diallo',
-      activity: 'Restauration',
-      phone: '+224620000006',
-      dateOfBirth: new Date('1988-09-12'),
-      birthPlace: 'Mamou',
-      idNumber: 'GN-ID-000006',
-    },
-    {
-      name: 'Sékou Touré',
-      activity: 'Électronique',
-      phone: '+224620000007',
-      dateOfBirth: new Date('1983-04-30'),
-      birthPlace: 'Faranah',
-      idNumber: 'GN-ID-000007',
-    },
-  ];
-
-  const tenants = await Promise.all(
-    tenantsData.map((data) =>
-      prisma.tenant.upsert({
-        where: { phone: data.phone },
-        update: {},
-        create: data,
-      }),
-    ),
-  );
-  console.log(`✓ ${tenants.length} locataires`);
-
-  // ── 4. Contracts (6) ────────────────────────────────────────────────────
-  //
-  //  LOCAL-001 : contrat 1 (Ousmane, TERMINATED juil–déc 2025)
-  //            contrat 2 (Ibrahima, ACTIVE depuis jan 2026)
-  //  LOCAL-002 : contrat 3 (Aissatou, CANCELED oct 2025 — annulé sans paiement)
-  //            contrat 4 (Fatoumata, ACTIVE depuis fév 2026)
-  //  LOCAL-003 : contrat 5 (Mamadou Sylla, ACTIVE depuis jan 2026)
-  //  LOCAL-004 : contrat 6 (Ousmane, ACTIVE depuis mars 2026 — 2e contrat du même tenant)
-
-  // Contrat 1 : Ousmane → LOCAL-001 (TERMINATED, juil–déc 2025)
-  const contract1 = await prisma.contract.upsert({
-    where: { id: 1 },
-    update: {},
-    create: {
-      localId: locals[0].id,
-      tenantId: tenants[2].id, // Ousmane
-      startDate: firstOfMonth(2025, 7),
-      endDate: new Date(Date.UTC(2025, 11, 31)), // 31 déc 2025
-      status: ContractStatus.TERMINATED,
-      createdById: admin.id,
-    },
-  });
-
-  // Contrat 2 : Ibrahima → LOCAL-001 (ACTIVE, depuis jan 2026 — succède au contrat 1)
-  const contract2 = await prisma.contract.upsert({
-    where: { id: 2 },
-    update: {},
-    create: {
-      localId: locals[0].id,
-      tenantId: tenants[0].id, // Ibrahima
-      startDate: firstOfMonth(2026, 1),
-      status: ContractStatus.ACTIVE,
-      createdById: admin.id,
-    },
-  });
-
-  // Contrat 3 : Aissatou → LOCAL-002 (CANCELED, oct 2025 — annulé avant tout paiement)
-  const contract3 = await prisma.contract.upsert({
-    where: { id: 3 },
-    update: {},
-    create: {
-      localId: locals[1].id,
-      tenantId: tenants[3].id, // Aissatou
-      startDate: firstOfMonth(2025, 10),
-      endDate: firstOfMonth(2025, 10),
-      status: ContractStatus.CANCELED,
-      createdById: admin.id,
-    },
-  });
-
-  // Contrat 4 : Fatoumata → LOCAL-002 (ACTIVE, depuis fév 2026 — succède au contrat 3)
-  const contract4 = await prisma.contract.upsert({
-    where: { id: 4 },
-    update: {},
-    create: {
-      localId: locals[1].id,
-      tenantId: tenants[1].id, // Fatoumata
-      startDate: firstOfMonth(2026, 2),
-      status: ContractStatus.ACTIVE,
-      createdById: admin.id,
-    },
-  });
-
-  // Contrat 5 : Mamadou Sylla → LOCAL-003 (ACTIVE, depuis jan 2026)
-  const contract5 = await prisma.contract.upsert({
-    where: { id: 5 },
-    update: {},
-    create: {
-      localId: locals[2].id,
-      tenantId: tenants[4].id, // Mamadou Sylla
-      startDate: firstOfMonth(2026, 1),
-      status: ContractStatus.ACTIVE,
-      createdById: user.id,
-    },
-  });
-
-  // Contrat 6 : Ousmane → LOCAL-004 (ACTIVE, depuis mars 2026 — 2e contrat, autre local)
-  const contract6 = await prisma.contract.upsert({
-    where: { id: 6 },
-    update: {},
-    create: {
-      localId: locals[3].id,
-      tenantId: tenants[2].id, // Ousmane (même tenant que contrat 1)
-      startDate: firstOfMonth(2026, 3),
-      status: ContractStatus.ACTIVE,
-      createdById: admin.id,
-    },
-  });
-
-  console.log(`✓ 6 contrats (4 ACTIVE, 1 TERMINATED, 1 CANCELED)`);
-
-  // ── 5. Deposits (6) ─────────────────────────────────────────────────────
-
-  await prisma.deposit.upsert({
-    where: { contractId: contract1.id },
-    update: {},
-    create: {
-      contractId: contract1.id,
-      amount: 400_000,
-      status: DepositStatus.REFUNDED,
-      refundedAt: new Date(Date.UTC(2026, 0, 5)), // 5 jan 2026
-    },
-  });
-
-  await prisma.deposit.upsert({
-    where: { contractId: contract2.id },
-    update: {},
-    create: {
-      contractId: contract2.id,
-      amount: 500_000,
-      status: DepositStatus.HELD,
-    },
-  });
-
-  await prisma.deposit.upsert({
-    where: { contractId: contract3.id },
-    update: {},
-    create: {
-      contractId: contract3.id,
-      amount: 600_000,
-      status: DepositStatus.REFUNDED,
-      refundedAt: new Date(Date.UTC(2025, 9, 15)), // 15 oct 2025
-    },
-  });
-
-  await prisma.deposit.upsert({
-    where: { contractId: contract4.id },
-    update: {},
-    create: {
-      contractId: contract4.id,
-      amount: 750_000,
-      status: DepositStatus.HELD,
-    },
-  });
-
-  await prisma.deposit.upsert({
-    where: { contractId: contract5.id },
-    update: {},
-    create: {
-      contractId: contract5.id,
-      amount: 350_000,
-      status: DepositStatus.HELD,
-    },
-  });
-
-  await prisma.deposit.upsert({
-    where: { contractId: contract6.id },
-    update: {},
-    create: {
-      contractId: contract6.id,
-      amount: 450_000,
-      status: DepositStatus.HELD,
-    },
-  });
-
-  console.log(`✓ 6 cautions (4 HELD, 2 REFUNDED)`);
-
-  // ── 6. Rents ─────────────────────────────────────────────────────────────
-
-  // Contrat 1 : 400 000 GNF juil–déc 2025
-  const rent1 = await prisma.rent.upsert({
-    where: { id: 1 },
-    update: {},
-    create: {
-      contractId: contract1.id,
-      amount: 400_000,
-      effectiveFrom: firstOfMonth(2025, 7),
-      effectiveTo: new Date(Date.UTC(2025, 11, 31)),
-    },
-  });
-
-  // Contrat 2 : 500 000 GNF jan–fév 2026, puis augmentation à 550 000 en mars (SCD)
-  const rent2a = await prisma.rent.upsert({
-    where: { id: 2 },
-    update: {},
-    create: {
-      contractId: contract2.id,
-      amount: 500_000,
-      effectiveFrom: firstOfMonth(2026, 1),
-      effectiveTo: new Date(Date.UTC(2026, 1, 28)), // 28 fév 2026
-    },
-  });
-
-  const rent2b = await prisma.rent.upsert({
-    where: { id: 3 },
-    update: {},
-    create: {
-      contractId: contract2.id,
-      amount: 550_000,
-      effectiveFrom: firstOfMonth(2026, 3),
-    },
-  });
-
-  // Contrat 3 : pas de rent (CANCELED avant paiement)
-
-  // Contrat 4 : 750 000 GNF depuis fév 2026
-  const rent4 = await prisma.rent.upsert({
-    where: { id: 4 },
-    update: {},
-    create: {
-      contractId: contract4.id,
-      amount: 750_000,
-      effectiveFrom: firstOfMonth(2026, 2),
-    },
-  });
-
-  // Contrat 5 : 350 000 GNF depuis jan 2026
-  const rent5 = await prisma.rent.upsert({
-    where: { id: 5 },
-    update: {},
-    create: {
-      contractId: contract5.id,
-      amount: 350_000,
-      effectiveFrom: firstOfMonth(2026, 1),
-    },
-  });
-
-  // Contrat 6 : 450 000 GNF depuis mars 2026
-  const rent6 = await prisma.rent.upsert({
-    where: { id: 6 },
-    update: {},
-    create: {
-      contractId: contract6.id,
-      amount: 450_000,
-      effectiveFrom: firstOfMonth(2026, 3),
-    },
-  });
-
-  console.log(`✓ 6 loyers (dont 1 augmentation SCD sur contrat 2)`);
-
-  // ── 7. RentDues ──────────────────────────────────────────────────────────
-
-  // Contrat 1 (TERMINATED) : juil–déc 2025, tous PAID
-  const rentDues1: RentDue[] = [];
-  for (const m of [7, 8, 9, 10, 11, 12]) {
-    const rd = await prisma.rentDue.upsert({
-      where: { contractId_month: { contractId: contract1.id, month: firstOfMonth(2025, m) } },
-      update: {},
-      create: {
-        contractId: contract1.id,
-        rentId: rent1.id,
-        month: firstOfMonth(2025, m),
-        amount: 400_000,
-        dueDate: dueDateForMonth(2025, m),
-        status: RentDueStatus.PAID,
-      },
-    });
-    rentDues1.push(rd);
+  const locals: { id: number }[] = [];
+  for (const { code, name } of LOCALS) {
+    locals.push(await prisma.local.create({ data: { code, name } }));
   }
 
-  // Contrat 2 (ACTIVE) : jan–avr 2026 (jan-fév à 500k, mars-avr à 550k après augmentation)
-  const rentDues2: RentDue[] = [];
-  for (const m of [1, 2, 3, 4]) {
-    const isNewRent = m >= 3;
-    const rd = await prisma.rentDue.upsert({
-      where: { contractId_month: { contractId: contract2.id, month: firstOfMonth(2026, m) } },
-      update: {},
-      create: {
-        contractId: contract2.id,
-        rentId: isNewRent ? rent2b.id : rent2a.id,
-        month: firstOfMonth(2026, m),
-        amount: isNewRent ? 550_000 : 500_000,
-        dueDate: dueDateForMonth(2026, m),
-        status: m <= 3 ? RentDueStatus.PAID : RentDueStatus.PENDING,
-      },
-    });
-    rentDues2.push(rd);
-  }
-
-  // Contrat 4 (ACTIVE) : fév–avr 2026 (fév payé ; mars/avr impayés → LATE via réconciliation)
-  const rentDues4: RentDue[] = [];
-  for (const m of [2, 3, 4]) {
-    const rd = await prisma.rentDue.upsert({
-      where: { contractId_month: { contractId: contract4.id, month: firstOfMonth(2026, m) } },
-      update: {},
-      create: {
-        contractId: contract4.id,
-        rentId: rent4.id,
-        month: firstOfMonth(2026, m),
-        amount: 750_000,
-        dueDate: dueDateForMonth(2026, m),
-        status: m === 2 ? RentDueStatus.PAID : RentDueStatus.PENDING,
-      },
-    });
-    rentDues4.push(rd);
-  }
-
-  // Contrat 5 (ACTIVE) : jan–avr 2026 (jan-fév payés ; mars/avr impayés → LATE via réconciliation)
-  const rentDues5: RentDue[] = [];
-  for (const m of [1, 2, 3, 4]) {
-    const rd = await prisma.rentDue.upsert({
-      where: { contractId_month: { contractId: contract5.id, month: firstOfMonth(2026, m) } },
-      update: {},
-      create: {
-        contractId: contract5.id,
-        rentId: rent5.id,
-        month: firstOfMonth(2026, m),
-        amount: 350_000,
-        dueDate: dueDateForMonth(2026, m),
-        status: m <= 2 ? RentDueStatus.PAID : RentDueStatus.PENDING,
-      },
-    });
-    rentDues5.push(rd);
-  }
-
-  // Contrat 6 (ACTIVE) : mars–avr 2026 (mars payé ; avr impayé → LATE via réconciliation)
-  const rentDues6: RentDue[] = [];
-  for (const m of [3, 4]) {
-    const rd = await prisma.rentDue.upsert({
-      where: { contractId_month: { contractId: contract6.id, month: firstOfMonth(2026, m) } },
-      update: {},
-      create: {
-        contractId: contract6.id,
-        rentId: rent6.id,
-        month: firstOfMonth(2026, m),
-        amount: 450_000,
-        dueDate: dueDateForMonth(2026, m),
-        status: m === 3 ? RentDueStatus.PAID : RentDueStatus.PENDING,
-      },
-    });
-    rentDues6.push(rd);
-  }
-
-  const totalRentDues = rentDues1.length + rentDues2.length + rentDues4.length + rentDues5.length + rentDues6.length;
-
-  // Réconciliation identique au cron markOverdueAsLate : toute échéance PENDING
-  // dont la date d'exigibilité est passée bascule en LATE. Le statut « en retard »
-  // est ainsi dérivé de la date du jour (jamais figé) → le seed reste cohérent
-  // quelle que soit la date à laquelle on le rejoue.
-  const lateResult = await prisma.rentDue.updateMany({
-    where: { status: RentDueStatus.PENDING, dueDate: { lt: new Date() } },
-    data: { status: RentDueStatus.LATE },
-  });
-  console.log(`✓ ${totalRentDues} échéances (${lateResult.count} passée(s) en LATE)`);
-
-  // ── 8. Payments + PaymentLines ───────────────────────────────────────────
-
-  const allPayments: Payment[] = [];
-
-  // 8.a DEPOSIT_HELD : 1 paiement par contrat ayant une caution (créé à la signature)
-
-  const depositHeld1 = await prisma.payment.create({
-    data: {
-      contractId: contract1.id,
-      type: PaymentType.DEPOSIT_HELD,
-      amount: 400_000,
-      paymentDate: firstOfMonth(2025, 7),
-      paymentMethod: PaymentMethod.CASH,
-      createdById: admin.id,
-    },
-  });
-  allPayments.push(depositHeld1);
-
-  const depositHeld2 = await prisma.payment.create({
-    data: {
-      contractId: contract2.id,
-      type: PaymentType.DEPOSIT_HELD,
-      amount: 500_000,
-      paymentDate: firstOfMonth(2026, 1),
-      paymentMethod: PaymentMethod.CASH,
-      createdById: admin.id,
-    },
-  });
-  allPayments.push(depositHeld2);
-
-  const depositHeld3 = await prisma.payment.create({
-    data: {
-      contractId: contract3.id,
-      type: PaymentType.DEPOSIT_HELD,
-      amount: 600_000,
-      paymentDate: firstOfMonth(2025, 10),
-      paymentMethod: PaymentMethod.CASH,
-      createdById: admin.id,
-    },
-  });
-  allPayments.push(depositHeld3);
-
-  const depositHeld4 = await prisma.payment.create({
-    data: {
-      contractId: contract4.id,
-      type: PaymentType.DEPOSIT_HELD,
-      amount: 750_000,
-      paymentDate: firstOfMonth(2026, 2),
-      paymentMethod: PaymentMethod.ORANGE_MONEY,
-      createdById: admin.id,
-    },
-  });
-  allPayments.push(depositHeld4);
-
-  const depositHeld5 = await prisma.payment.create({
-    data: {
-      contractId: contract5.id,
-      type: PaymentType.DEPOSIT_HELD,
-      amount: 350_000,
-      paymentDate: firstOfMonth(2026, 1),
-      paymentMethod: PaymentMethod.MOBILE_MONEY,
-      createdById: user.id,
-    },
-  });
-  allPayments.push(depositHeld5);
-
-  const depositHeld6 = await prisma.payment.create({
-    data: {
-      contractId: contract6.id,
-      type: PaymentType.DEPOSIT_HELD,
-      amount: 450_000,
-      paymentDate: firstOfMonth(2026, 3),
-      paymentMethod: PaymentMethod.CASH,
-      createdById: admin.id,
-    },
-  });
-  allPayments.push(depositHeld6);
-
-  // 8.b DEPOSIT_REFUND : contrats dont la caution est REFUNDED (1 et 3)
-
-  // Contrat 1 : remboursement à la résiliation (5 jan 2026, cohérent avec deposit.refundedAt)
-  const depositRefund1 = await prisma.payment.create({
-    data: {
-      contractId: contract1.id,
-      type: PaymentType.DEPOSIT_REFUND,
-      amount: 400_000,
-      paymentDate: new Date(Date.UTC(2026, 0, 5)),
-      paymentMethod: PaymentMethod.CASH,
-      createdById: admin.id,
-    },
-  });
-  allPayments.push(depositRefund1);
-
-  // Contrat 3 : remboursement à l'annulation (15 oct 2025, cohérent avec deposit.refundedAt)
-  const depositRefund3 = await prisma.payment.create({
-    data: {
-      contractId: contract3.id,
-      type: PaymentType.DEPOSIT_REFUND,
-      amount: 600_000,
-      paymentDate: new Date(Date.UTC(2025, 9, 15)),
-      paymentMethod: PaymentMethod.CASH,
-      createdById: admin.id,
-    },
-  });
-  allPayments.push(depositRefund3);
-
-  // 8.c RENT : paiements de loyer
-
-  // Contrat 1 : 1 paiement multi-mois (6 mois d'un coup)
-  const pay1 = await prisma.payment.create({
-    data: {
-      contractId: contract1.id,
-      type: PaymentType.RENT,
-      amount: 2_400_000,
-      paymentDate: fifthOfMonth(2025, 7),
-      paymentMethod: PaymentMethod.CASH,
-      createdById: admin.id,
-      paymentLines: {
-        create: rentDues1.map((rd) => ({ rentDueId: rd.id })),
-      },
-    },
-  });
-  allPayments.push(pay1);
-
-  // Contrat 2 : 3 paiements mensuels (jan, fév, mars)
-  for (let i = 0; i < 3; i++) {
-    const pay = await prisma.payment.create({
-      data: {
-        contractId: contract2.id,
-        type: PaymentType.RENT,
-        amount: rentDues2[i].amount,
-        paymentDate: fifthOfMonth(2026, i + 1),
-        paymentMethod: i === 0 ? PaymentMethod.CASH : PaymentMethod.ORANGE_MONEY,
-        createdById: user.id,
-        paymentLines: {
-          create: { rentDueId: rentDues2[i].id },
+  const phones = new Set<string>();
+  const tenants: { id: number }[] = [];
+  for (const [i, t] of TENANTS.entries()) {
+    let phone: string;
+    do {
+      phone = `+224${pick(['620', '621', '622', '624', '625', '628', '655', '657', '660', '664'])}${String(int(0, 999_999)).padStart(6, '0')}`;
+    } while (phones.has(phone));
+    phones.add(phone);
+    tenants.push(
+      await prisma.tenant.create({
+        data: {
+          name: t.name,
+          activity: t.activity,
+          phone,
+          dateOfBirth: new Date(`${t.born}T00:00:00Z`),
+          birthPlace: t.birthPlace,
+          idNumber: `GN${String(1_000_000 + i * 7919 + int(0, 7000)).padStart(9, '0')}`,
         },
+      }),
+    );
+  }
+  console.log(`✓ ${locals.length} locaux, ${tenants.length} locataires`);
+
+  // ── 3. Contrats, loyers, échéances, paiements ────────────────────────────
+
+  const plans = buildPlans().sort((a, b) => a.start - b.start);
+  const paymentIds: number[] = [];
+  let dueCount = 0;
+
+  for (const plan of plans) {
+    // Caution versée le 1er à 8 h, avant tout loyer (versé à partir de 10 h).
+    const depositDate = new Date(
+      monthStart(plan.start).getTime() + 8 * 3_600_000,
+    );
+    const terminated = plan.status === ContractStatus.TERMINATED;
+    const canceled = plan.status === ContractStatus.CANCELED;
+
+    const contract = await prisma.contract.create({
+      data: {
+        localId: locals[plan.local].id,
+        tenantId: tenants[plan.tenant].id,
+        startDate: monthStart(plan.start),
+        endDate: plan.end === null ? null : lastDayOf(plan.end),
+        status: plan.status,
+        createdById: admin.id,
+        createdAt: depositDate,
       },
     });
-    allPayments.push(pay);
+
+    const firstRent = await prisma.rent.create({
+      data: {
+        contractId: contract.id,
+        amount: plan.rent,
+        effectiveFrom: monthStart(plan.start),
+        effectiveTo: plan.increase
+          ? new Date(monthStart(plan.increase.from).getTime() - 86_400_000)
+          : null,
+        createdAt: depositDate,
+      },
+    });
+    const newRent = plan.increase
+      ? await prisma.rent.create({
+          data: {
+            contractId: contract.id,
+            amount: plan.increase.amount,
+            effectiveFrom: monthStart(plan.increase.from),
+            createdAt: dayOf(plan.increase.from - 1, int(10, 25)),
+          },
+        })
+      : null;
+    const rentIdAt = (m: number) =>
+      newRent && m >= plan.increase!.from ? newRent.id : firstRent.id;
+
+    const depositPayment = await prisma.payment.create({
+      data: {
+        contractId: contract.id,
+        type: PaymentType.DEPOSIT_HELD,
+        amount: plan.rent,
+        paymentDate: depositDate,
+        paymentMethod: weighted(METHODS),
+        createdById: admin.id,
+        createdAt: depositDate,
+      },
+    });
+    paymentIds.push(depositPayment.id);
+
+    const refundDate = canceled
+      ? dayOf(plan.start, int(4, 15))
+      : terminated
+        ? dayOf((plan.end as number) + 1, int(2, 10))
+        : null;
+    await prisma.deposit.create({
+      data: {
+        contractId: contract.id,
+        amount: plan.rent,
+        status: refundDate ? DepositStatus.REFUNDED : DepositStatus.HELD,
+        refundedAt: refundDate,
+        createdAt: depositDate,
+      },
+    });
+
+    // Échéances : chaque mois commencé de la période, plus les mois payés d'avance.
+    const scheduled = schedulePayments(plan);
+    const paid = new Set(scheduled.flatMap((p) => p.months));
+    const lastDue = canceled
+      ? plan.start - 1
+      : terminated
+        ? (plan.end as number)
+        : Math.min(CURRENT, plan.end ?? CURRENT);
+    const dueMonths = new Set<number>(paid);
+    for (let m = plan.start; m <= lastDue; m++) dueMonths.add(m);
+
+    const dueIds = new Map<number, number>();
+    for (const m of [...dueMonths].sort((a, b) => a - b)) {
+      const status = paid.has(m)
+        ? RentDueStatus.PAID
+        : dueDateOf(m) < NOW
+          ? RentDueStatus.LATE
+          : RentDueStatus.PENDING;
+      const due = await prisma.rentDue.create({
+        data: {
+          contractId: contract.id,
+          rentId: rentIdAt(m),
+          month: monthStart(m),
+          amount: rentAt(plan, m),
+          dueDate: dueDateOf(m),
+          status,
+          createdAt: m > CURRENT ? NOW : monthStart(m),
+        },
+      });
+      dueIds.set(m, due.id);
+    }
+    dueCount += dueIds.size;
+
+    for (const { date, months } of scheduled) {
+      const payment = await prisma.payment.create({
+        data: {
+          contractId: contract.id,
+          type: PaymentType.RENT,
+          amount: months.reduce((sum, m) => sum + rentAt(plan, m), 0),
+          paymentDate: date,
+          paymentMethod: weighted(METHODS),
+          createdById: weighted(clerks),
+          createdAt: date,
+          paymentLines: {
+            create: months.map((m) => ({ rentDueId: dueIds.get(m)! })),
+          },
+        },
+      });
+      paymentIds.push(payment.id);
+    }
+
+    if (refundDate) {
+      const refund = await prisma.payment.create({
+        data: {
+          contractId: contract.id,
+          type: PaymentType.DEPOSIT_REFUND,
+          amount: plan.rent,
+          paymentDate: refundDate,
+          paymentMethod: PaymentMethod.CASH,
+          createdById: admin.id,
+          createdAt: refundDate,
+        },
+      });
+      paymentIds.push(refund.id);
+    }
   }
 
-  // Contrat 4 : 1 paiement (fév)
-  const pay4 = await prisma.payment.create({
-    data: {
-      contractId: contract4.id,
-      type: PaymentType.RENT,
-      amount: 750_000,
-      paymentDate: fifthOfMonth(2026, 2),
-      paymentMethod: PaymentMethod.ORANGE_MONEY,
-      createdById: user.id,
-      paymentLines: {
-        create: { rentDueId: rentDues4[0].id },
-      },
+  const count = (status: ContractStatus) =>
+    plans.filter((p) => p.status === status).length;
+  const late = await prisma.rentDue.count({
+    where: { status: RentDueStatus.LATE },
+  });
+  console.log(
+    `✓ ${plans.length} contrats (${count(ContractStatus.ACTIVE)} actifs, ${count(ContractStatus.TERMINATED)} résiliés, ${count(ContractStatus.CANCELED)} annulés)`,
+  );
+  console.log(
+    `✓ ${dueCount} échéances (${late} en retard), ${paymentIds.length} paiements`,
+  );
+
+  await createReceipts();
+}
+
+// ── 4. Reçus PDF ─────────────────────────────────────────────────────────────
+
+async function createReceipts() {
+  const env = (key: string) => process.env[key];
+  const missing = [
+    'S3_ENDPOINT',
+    'S3_REGION',
+    'S3_BUCKET',
+    'S3_ACCESS_KEY',
+    'S3_SECRET_KEY',
+    'BAILLEUR_NAME',
+    'BAILLEUR_LIEU',
+  ].filter((key) => !env(key));
+  if (missing.length > 0) {
+    console.log(`⏭ Reçus ignorés : ${missing.join(', ')} non défini(s)`);
+    return;
+  }
+
+  const s3 = new S3Client({
+    endpoint: env('S3_ENDPOINT'),
+    region: env('S3_REGION'),
+    credentials: {
+      accessKeyId: env('S3_ACCESS_KEY')!,
+      secretAccessKey: env('S3_SECRET_KEY')!,
+    },
+    forcePathStyle: true,
+  });
+  // En CI, le seed passe avant le démarrage de l'API qui crée le bucket.
+  const Bucket = env('S3_BUCKET');
+  await s3
+    .send(new HeadBucketCommand({ Bucket }))
+    .catch(() => s3.send(new CreateBucketCommand({ Bucket })));
+
+  const payments = await prisma.payment.findMany({
+    orderBy: [{ paymentDate: 'asc' }, { id: 'asc' }],
+    include: {
+      contract: { include: { tenant: true, local: true, document: true } },
+      paymentLines: { include: { rentDue: true } },
     },
   });
-  allPayments.push(pay4);
 
-  // Contrat 5 : 1 paiement multi-mois (jan + fév)
-  const pay5 = await prisma.payment.create({
-    data: {
-      contractId: contract5.id,
-      type: PaymentType.RENT,
-      amount: 700_000,
-      paymentDate: fifthOfMonth(2026, 2),
-      paymentMethod: PaymentMethod.MOBILE_MONEY,
-      createdById: user.id,
-      paymentLines: {
-        create: [
-          { rentDueId: rentDues5[0].id },
-          { rentDueId: rentDues5[1].id },
-        ],
-      },
-    },
-  });
-  allPayments.push(pay5);
+  const sequence = new Map<number, number>();
+  for (const payment of payments) {
+    const year = payment.paymentDate.getUTCFullYear();
+    const seq = (sequence.get(year) ?? 0) + 1;
+    sequence.set(year, seq);
+    const receiptNo = `REC-${year}-${String(seq).padStart(5, '0')}`;
+    const s3Key = `receipts/${payment.id}/${receiptNo}.pdf`;
 
-  // Contrat 6 : 1 paiement (mars)
-  const pay6 = await prisma.payment.create({
-    data: {
-      contractId: contract6.id,
-      type: PaymentType.RENT,
-      amount: 450_000,
-      paymentDate: fifthOfMonth(2026, 3),
-      paymentMethod: PaymentMethod.CASH,
-      createdById: admin.id,
-      paymentLines: {
-        create: { rentDueId: rentDues6[0].id },
-      },
-    },
-  });
-  allPayments.push(pay6);
-
-  console.log(`✓ ${allPayments.length} paiements (6 RENT, 6 DEPOSIT_HELD, 2 DEPOSIT_REFUND)`);
-
-  // ── 9. Receipts ──────────────────────────────────────────────────────────
-
-  for (let i = 0; i < allPayments.length; i++) {
-    const year = allPayments[i].paymentDate.getUTCFullYear();
-    const receiptNo = `REC-${year}-${String(i + 1).padStart(5, '0')}`;
-    await prisma.receipt.upsert({
-      where: { paymentId: allPayments[i].id },
-      update: {},
-      create: {
-        paymentId: allPayments[i].id,
+    const pdf = await buildReceiptPdf(
+      payment,
+      receiptNo,
+      env('BAILLEUR_NAME')!,
+      env('BAILLEUR_LIEU')!,
+    );
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: env('S3_BUCKET'),
+        Key: s3Key,
+        Body: pdf,
+        ContentType: 'application/pdf',
+      }),
+    );
+    await prisma.receipt.create({
+      data: {
+        paymentId: payment.id,
         receiptNo,
-        s3Key: `receipts/${allPayments[i].id}/${receiptNo}.pdf`,
+        s3Key,
+        createdAt: payment.paymentDate,
       },
     });
   }
-
-  console.log(`✓ ${allPayments.length} reçus`);
-
-  // ── Résumé ───────────────────────────────────────────────────────────────
-
-  console.log('\n── Seed terminé ──');
-  console.log('  Contrat 1 (Boutique 1, Ousmane)    : juil–déc 2025, TERMINATED, caution HELD→REFUNDED, loyers payés en 1 fois');
-  console.log('  Contrat 2 (Boutique 1, Ibrahima)   : jan–avr 2026, ACTIVE, caution HELD, augmentation mars, 3 loyers payés, avr impayé');
-  console.log('  Contrat 3 (Boutique 2, Aissatou)   : oct 2025, CANCELED, caution HELD→REFUNDED, aucun loyer');
-  console.log('  Contrat 4 (Boutique 2, Fatoumata)  : fév–avr 2026, ACTIVE, caution HELD, fév payé, mars/avr impayés');
-  console.log('  Contrat 5 (Boutique 3, Mamadou S.) : jan–avr 2026, ACTIVE, caution HELD, jan+fév payés multi-mois, mars/avr impayés');
-  console.log('  Contrat 6 (Boutique 4, Ousmane)    : mars–avr 2026, ACTIVE, caution HELD, mars payé, avr impayé');
-  console.log('  (échéances impayées dont l\'exigibilité est passée → LATE)');
-  console.log('  Boutiques 5 & 6                    : VACANTES (aucun contrat) → dispo pour créer un bail');
-  console.log('  Mariama Diallo & Sékou Touré       : locataires SANS contrat → dispo pour créer un bail');
+  console.log(`✓ ${payments.length} reçus PDF`);
 }
 
 main()
