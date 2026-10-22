@@ -33,4 +33,27 @@ describe('buildBailPdf', () => {
     expect(brand[0].x).toBeGreaterThan(595.28 / 2);
     expect(Math.abs(brand[0].y - (title?.y ?? 0))).toBeLessThan(10);
   });
+
+  it('pose chaque montant et son « GNF » sur la même ligne de base', async () => {
+    const text = jest.spyOn(PDFDocument.prototype, 'text');
+    await buildBailPdf(data, 'BAIL-2026-00007', 'Alpha Keita', 'Conakry');
+    const calls = text.mock.calls.map(([value, x, y, options]) => ({
+      value: String(value),
+      x: Number(x),
+      y: Number(y),
+      baseline: (options as { baseline?: unknown } | undefined)?.baseline,
+    }));
+    text.mockRestore();
+    const currencies = calls.flatMap((c, i) =>
+      c.value === 'GNF' ? [{ currency: c, amount: calls[i - 1] }] : [],
+    );
+    expect(currencies).toHaveLength(2);
+    for (const { currency, amount } of currencies) {
+      expect(amount.value).toMatch(/^1\s500\s000$/);
+      expect(amount.baseline).toBe('alphabetic');
+      expect(currency.baseline).toBe('alphabetic');
+      expect(currency.y).toBe(amount.y);
+      expect(currency.x).toBeGreaterThan(amount.x);
+    }
+  });
 });

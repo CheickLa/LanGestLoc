@@ -75,6 +75,30 @@ function caption(
     });
 }
 
+// Montant puis « GNF » sur la même ligne de base, comme sur le reçu.
+function amountWithCurrency(
+  doc: PDFKit.PDFDocument,
+  F: FontSet,
+  amount: number,
+  x: number,
+  top: number,
+) {
+  const value = groupAmount(amount);
+  const onBaseline = { baseline: 'alphabetic', lineBreak: false } as const;
+  const baseline = top + 11;
+  doc
+    .font(F.monoMedium)
+    .fontSize(11)
+    .fillColor(COLOR.ink)
+    .text(value, x, baseline, onBaseline);
+  const currencyX = x + doc.widthOfString(value) + 3;
+  doc
+    .font(F.sansRegular)
+    .fontSize(8)
+    .fillColor(COLOR.faint)
+    .text('GNF', currencyX, baseline, onBaseline);
+}
+
 export function buildBailPdf(
   data: BailData,
   documentNo: string,
@@ -253,26 +277,10 @@ export function buildBailPdf(
       .text(periode, t.cx, t.vy, { width: t.cw });
 
     t = term(2, 'Loyer mensuel');
-    doc
-      .font(F.monoMedium)
-      .fontSize(11)
-      .fillColor(COLOR.ink)
-      .text(groupAmount(data.rentAmount), t.cx, t.vy, { continued: true })
-      .font(F.sansRegular)
-      .fontSize(8)
-      .fillColor(COLOR.faint)
-      .text(' GNF', { continued: false });
+    amountWithCurrency(doc, F, data.rentAmount, t.cx, t.vy);
 
     t = term(3, 'Dépôt de caution');
-    doc
-      .font(F.monoMedium)
-      .fontSize(11)
-      .fillColor(COLOR.ink)
-      .text(groupAmount(data.depositAmount), t.cx, t.vy, { continued: true })
-      .font(F.sansRegular)
-      .fontSize(8)
-      .fillColor(COLOR.faint)
-      .text(' GNF', { continued: false });
+    amountWithCurrency(doc, F, data.depositAmount, t.cx, t.vy);
 
     // ── Préambule ──
     doc.y = cardY + cardH + 22;
