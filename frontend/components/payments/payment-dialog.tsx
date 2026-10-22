@@ -34,6 +34,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate, formatGNF } from "@/lib/format";
 import { monthLabel, monthOf } from "@/lib/months";
 import { PAYMENT_METHOD_LABEL, contractLabel, paymentPeriod } from "@/lib/payments";
+import { PdfLink } from "@/components/pdf-link";
 
 type PayableMonth = components["schemas"]["PayableMonthEntity"];
 type PaymentDetail = components["schemas"]["PaymentDetailEntity"];
@@ -192,13 +193,11 @@ export function PaymentDialog({ open, onOpenChange, contract, contracts }: Payme
             </dl>
             {done.receipt ? (
               <Button asChild>
-                <a
+                <PdfLink
                   href={`/api/receipts/by-payment/${done.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                 >
                   Ouvrir le reçu
-                </a>
+                </PdfLink>
               </Button>
             ) : (
               <p className="text-center text-sm text-muted-foreground">
