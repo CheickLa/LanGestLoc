@@ -1,8 +1,10 @@
 import Image from "next/image";
-import { ChevronDown, Menu } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import { StatusBadge, type Status } from "@/components/ui/status-badge";
+import { navItemsForRole } from "@/components/layout/nav-items";
 import { formatGNF } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 // Reproduction de l'écran « Nouveau paiement » (components/payments/payment-dialog.tsx).
 
@@ -32,7 +34,6 @@ export function PhonePreview() {
       className="flex aspect-[9/19] w-[min(300px,100%)] flex-col overflow-hidden rounded-[46px] border-10 border-foreground bg-muted shadow-[var(--screen-shadow)]"
     >
       <div aria-hidden className="flex h-[58px] shrink-0 items-center gap-2.5 bg-primary px-3.5 text-primary-foreground">
-        <Menu className="size-5" strokeWidth={1.8} />
         <Image src="/icon-white.svg" alt="" width={26} height={26} className="size-[26px]" />
         <span className="text-base font-semibold">Paiements</span>
       </div>
@@ -71,6 +72,25 @@ export function PhonePreview() {
         </div>
         <div className="mt-auto flex h-[42px] items-center justify-center rounded-[9px] bg-primary text-[13px] font-semibold text-primary-foreground">
           Enregistrer {formatGNF(TOTAL)}
+        </div>
+      </div>
+      <div aria-hidden className="shrink-0 px-2 pt-1.5 pb-3">
+        <div className="flex rounded-full border border-border bg-card p-1 shadow-[var(--card-shadow)]">
+          {navItemsForRole("USER").map((item) => {
+            const active = item.href === "/payments";
+            const Icon = item.icon;
+            return (
+              <span
+                key={item.href}
+                className={cn(
+                  "flex h-9 flex-1 items-center justify-center rounded-full",
+                  active ? "bg-primary/10 text-primary" : "text-muted-foreground",
+                )}
+              >
+                <Icon className="size-4.5" strokeWidth={1.8} />
+              </span>
+            );
+          })}
         </div>
       </div>
     </div>
