@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LanGestLoc — Gestion locative",
   description: "Gestion locative de locaux commerciaux",
+};
+
+// Sans « cover », iOS ne donne pas la hauteur de la barre d'accueil (safe-area).
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

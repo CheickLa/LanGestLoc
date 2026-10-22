@@ -94,7 +94,7 @@ export function ContractDetailClient({
     <div className="mx-auto max-w-3xl">
       <Link
         href="/contracts"
-        className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        className="mb-3 hidden items-center gap-1 text-sm text-muted-foreground hover:text-foreground md:inline-flex"
       >
         <ChevronLeft className="size-4" /> Contrats
       </Link>

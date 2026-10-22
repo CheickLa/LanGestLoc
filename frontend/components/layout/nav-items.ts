@@ -80,3 +80,9 @@ export function descriptionForPath(pathname: string): string {
     NAV_ITEMS.find((item) => isActive(pathname, item.href))?.description ?? ""
   );
 }
+
+/** Le `href` du NAV_ITEMS dont ce pathname est un sous-chemin strict, ou `null` */
+export function parentPathFor(pathname: string): string | null {
+  const parent = NAV_ITEMS.find((item) => pathname.startsWith(`${item.href}/`));
+  return parent?.href ?? null;
+}
