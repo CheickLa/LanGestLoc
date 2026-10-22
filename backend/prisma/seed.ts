@@ -556,6 +556,13 @@ async function main() {
   ];
   console.log(`✓ ${1 + agents.length} utilisateurs`);
 
+  if ((await prisma.local.count()) > 0) {
+    console.log(
+      '⏭ Données déjà présentes : lancer `prisma migrate reset` avant le seed.',
+    );
+    return;
+  }
+
   // ── 2. Locaux et locataires ──────────────────────────────────────────────
 
   const locals: { id: number }[] = [];
