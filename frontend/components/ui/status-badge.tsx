@@ -11,7 +11,7 @@ type Status =
   | Schemas["LocalListItemEntity"]["status"]
   | Schemas["PayableMonthEntity"]["status"];
 
-type Variant = "success" | "danger" | "info" | "warning" | "neutral";
+type Variant = "success" | "danger" | "info" | "warning" | "neutral" | "outline";
 
 const STATUS_MAP: Record<Status, { label: string; variant: Variant }> = {
   ACTIVE: { label: "Actif", variant: "success" },
@@ -22,9 +22,9 @@ const STATUS_MAP: Record<Status, { label: string; variant: Variant }> = {
   LATE: { label: "En retard", variant: "danger" },
   HELD: { label: "Détenue", variant: "warning" },
   REFUNDED: { label: "Restituée", variant: "neutral" },
-  OCCUPIED: { label: "Occupé", variant: "info" },
-  VACANT: { label: "Vacant", variant: "neutral" },
-  ADVANCE: { label: "À l'avance", variant: "neutral" },
+  OCCUPIED: { label: "Occupé", variant: "success" },
+  VACANT: { label: "Vacant", variant: "warning" },
+  ADVANCE: { label: "À l'avance", variant: "outline" },
 };
 
 const VARIANT_CLASSES: Record<Variant, string> = {
@@ -33,6 +33,8 @@ const VARIANT_CLASSES: Record<Variant, string> = {
   info: "bg-info text-info-foreground",
   warning: "bg-warning text-warning-foreground",
   neutral: "bg-neutral text-neutral-foreground",
+  // Contour à l'intérieur : même taille que les pastilles pleines.
+  outline: "bg-background text-neutral-foreground ring-1 ring-inset ring-faint/50",
 };
 
 export function StatusBadge({
