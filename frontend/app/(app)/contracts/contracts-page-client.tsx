@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Plus } from "lucide-react";
+import { Banknote, CalendarRange, CircleDot, FileText, Plus, Store, User } from "lucide-react";
 
 import type { components } from "@/lib/api/schema";
 import { Button } from "@/components/ui/button";
@@ -46,11 +46,13 @@ export function ContractsPageClient({
     {
       key: "local",
       header: "Local",
+      icon: Store,
       cell: (row) => <span className="text-foreground">{row.local.name}</span>,
     },
     {
       key: "tenant",
       header: "Locataire",
+      icon: User,
       cell: (row) => (
         <div>
           <div className="text-foreground">{row.tenant.name}</div>
@@ -65,11 +67,13 @@ export function ContractsPageClient({
     {
       key: "period",
       header: "Période",
+      icon: CalendarRange,
       cell: (row) => <span className="text-muted-foreground">{period(row)}</span>,
     },
     {
       key: "rent",
       header: "Loyer actuel",
+      icon: Banknote,
       className: "text-right whitespace-nowrap",
       cell: (row) => (
         <span className="tabular-nums">
@@ -80,11 +84,13 @@ export function ContractsPageClient({
     {
       key: "status",
       header: "Statut",
+      icon: CircleDot,
       cell: (row) => <StatusBadge status={row.status} />,
     },
     {
       key: "document",
       header: "Bail",
+      icon: FileText,
       className: "w-px whitespace-nowrap text-center",
       cell: (row) => (
         <a

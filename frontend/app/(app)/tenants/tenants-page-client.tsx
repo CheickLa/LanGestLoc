@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Cake, IdCard, MapPin, Pencil, Phone, Plus, Settings2, Trash2, User } from "lucide-react";
 
 import type { components } from "@/lib/api/schema";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,7 @@ export function TenantsPageClient({
     {
       key: "tenant",
       header: "Locataire",
+      icon: User,
       cell: (row) => (
         <div>
           <div className="text-foreground">{row.name}</div>
@@ -65,11 +66,13 @@ export function TenantsPageClient({
     {
       key: "phone",
       header: "Téléphone",
+      icon: Phone,
       cell: (row) => <span className="text-muted-foreground">{row.phone}</span>,
     },
     {
       key: "dateOfBirth",
       header: "Naissance",
+      icon: Cake,
       cell: (row) => (
         <span className="text-muted-foreground">
           {formatDate(row.dateOfBirth)}
@@ -79,6 +82,7 @@ export function TenantsPageClient({
     {
       key: "birthPlace",
       header: "Lieu de naissance",
+      icon: MapPin,
       cell: (row) => (
         <span className="text-muted-foreground">{row.birthPlace}</span>
       ),
@@ -86,6 +90,7 @@ export function TenantsPageClient({
     {
       key: "idNumber",
       header: "Pièce d'identité",
+      icon: IdCard,
       cell: (row) => (
         <span className="font-mono text-[12.5px] text-muted-foreground">
           {row.idNumber}
@@ -97,6 +102,7 @@ export function TenantsPageClient({
           {
             key: "actions",
             header: "Actions",
+            icon: Settings2,
             className: "w-px whitespace-nowrap text-center",
             cell: (row: TenantListItem) => (
               <div className="inline-flex justify-center gap-1">

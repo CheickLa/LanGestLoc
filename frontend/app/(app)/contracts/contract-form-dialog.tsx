@@ -158,10 +158,7 @@ export function ContractFormDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nouveau contrat</DialogTitle>
-          <DialogDescription>
-            La caution est égale au loyer initial et le bail PDF est généré automatiquement. Les
-            échéances des mois déjà écoulés de la période sont créées avec le contrat.
-          </DialogDescription>
+          <DialogDescription>Renseigne le local, le locataire et la période du contrat.</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarPlus, Mail, Pencil, Plus, Settings2, Shield, Trash2, User } from "lucide-react";
 
 import type { components } from "@/lib/api/schema";
 import { Button } from "@/components/ui/button";
@@ -57,16 +57,19 @@ export function UsersPageClient({
     {
       key: "name",
       header: "Nom",
+      icon: User,
       cell: (row) => <span className="text-foreground">{nameCell(row)}</span>,
     },
     {
       key: "email",
       header: "Email",
+      icon: Mail,
       cell: (row) => <span className="text-muted-foreground">{row.email}</span>,
     },
     {
       key: "role",
       header: "Rôle",
+      icon: Shield,
       cell: (row) => (
         <span className="text-muted-foreground">{roleLabel(row.role)}</span>
       ),
@@ -74,6 +77,7 @@ export function UsersPageClient({
     {
       key: "createdAt",
       header: "Créé le",
+      icon: CalendarPlus,
       cell: (row) => (
         <span className="text-muted-foreground">
           {formatDate(row.createdAt)}
@@ -83,6 +87,7 @@ export function UsersPageClient({
     {
       key: "actions",
       header: "Actions",
+      icon: Settings2,
       className: "w-px whitespace-nowrap text-center",
       cell: (row) => (
         <div className="inline-flex justify-center gap-1">

@@ -127,4 +127,13 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Safari iOS dessine ces champs en natif et ignore hauteur et largeur. */
+  input[type="date"],
+  input[type="month"] {
+    appearance: none;
+  }
+  input::-webkit-date-and-time-value {
+    min-height: 1.5em;
+    text-align: left;
+  }
 }
