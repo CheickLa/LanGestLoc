@@ -86,7 +86,7 @@ export function DataTable<T>({
       ) : null}
 
       {/* Desktop : table */}
-      <div className="hidden md:block">
+      <div className="hidden overflow-x-auto md:block">
         {isEmpty ? (
           <div className="px-5 py-12">{emptyState}</div>
         ) : (
