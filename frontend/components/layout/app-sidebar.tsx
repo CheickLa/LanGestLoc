@@ -9,25 +9,12 @@ import { cn } from "@/lib/utils";
 import { getInitials, roleLabel } from "@/lib/user";
 import { isActive, navItemsForRole } from "@/components/layout/nav-items";
 
-export function AppSidebar({
-  user,
-  open = false,
-  onClose,
-}: {
-  user: UserEntity;
-  open?: boolean;
-  onClose?: () => void;
-}) {
+export function AppSidebar({ user }: { user: UserEntity }) {
   const pathname = usePathname();
   const items = navItemsForRole(user.role);
 
   return (
-    <aside
-      className={cn(
-        "fixed inset-y-0 left-0 z-50 flex w-61 shrink-0 flex-col rounded-r-3xl bg-primary px-3.5 py-4.5 text-primary-foreground shadow-xl transition-transform duration-200 ease-out md:static md:translate-x-0 md:rounded-3xl md:shadow-sm",
-        open ? "translate-x-0" : "-translate-x-full",
-      )}
-    >
+    <aside className="hidden w-61 shrink-0 flex-col bg-primary px-3.5 py-4.5 text-primary-foreground md:flex md:rounded-3xl md:shadow-sm">
       {/* Marque */}
       <Link
         href="/dashboard"
@@ -52,7 +39,6 @@ export function AppSidebar({
             <Link
               key={item.href}
               href={item.href}
-              onClick={onClose}
               aria-current={active ? "page" : undefined}
               className={cn(
                 "flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-sm transition-colors",
