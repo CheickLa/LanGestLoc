@@ -524,6 +524,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chiffres du mois et loyers en retard */
+        get: operations["DashboardController_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dashboard/late-contracts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Contrats en retard, paginés */
+        get: operations["DashboardController_lateContracts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1266,6 +1300,98 @@ export interface components {
              * @enum {string}
              */
             status: "ok";
+        };
+        DashboardCollectedEntity: {
+            /** @example 9000000 */
+            amount: number;
+            /** @example 5 */
+            payments: number;
+        };
+        DashboardContractsEntity: {
+            /** @example 7 */
+            active: number;
+            /** @example 8 */
+            locals: number;
+        };
+        DashboardDueGroupEntity: {
+            /** @example 5 */
+            count: number;
+            /** @example 7500000 */
+            amount: number;
+        };
+        DashboardCurrentDuesEntity: {
+            paid: components["schemas"]["DashboardDueGroupEntity"];
+            pending: components["schemas"]["DashboardDueGroupEntity"];
+        };
+        DashboardMonthEntity: {
+            /**
+             * Format: date-time
+             * @description 1er du mois à 00:00:00 UTC
+             * @example 2026-10-01T00:00:00.000Z
+             */
+            month: string;
+            /** @example 9000000 */
+            amount: number;
+        };
+        DashboardLateEntity: {
+            /**
+             * @description Nombre d'échéances LATE
+             * @example 4
+             */
+            count: number;
+            /** @example 4700000 */
+            amount: number;
+        };
+        DashboardEntity: {
+            /**
+             * Format: date-time
+             * @description Mois en cours : 1er du mois à 00:00:00 UTC
+             * @example 2026-10-01T00:00:00.000Z
+             */
+            month: string;
+            /**
+             * Format: date-time
+             * @description Date limite des échéances du mois en cours
+             * @example 2026-11-05T00:00:00.000Z
+             */
+            dueDate: string;
+            collected: components["schemas"]["DashboardCollectedEntity"];
+            contracts: components["schemas"]["DashboardContractsEntity"];
+            currentDues: components["schemas"]["DashboardCurrentDuesEntity"];
+            /**
+             * @description Part payée des échéances du mois en cours (entier 0-100), null s'il n'y en a pas
+             * @example 73
+             */
+            recoveryRate: number | null;
+            /** @description Encaissé sur les six derniers mois, du plus ancien au mois en cours */
+            monthly: components["schemas"]["DashboardMonthEntity"][];
+            late: components["schemas"]["DashboardLateEntity"];
+        };
+        DashboardLateLocalEntity: {
+            /** @example B2 */
+            code: string;
+            /** @example Boutique B2 */
+            name: string;
+        };
+        DashboardLateTenantEntity: {
+            /** @example Fatoumata Sylla */
+            name: string;
+        };
+        DashboardLateContractEntity: {
+            /** @example 2 */
+            contractId: number;
+            local: components["schemas"]["DashboardLateLocalEntity"];
+            tenant: components["schemas"]["DashboardLateTenantEntity"];
+            /**
+             * @description Mois en retard, du plus ancien au plus récent
+             * @example [
+             *       "2026-08-01T00:00:00.000Z",
+             *       "2026-09-01T00:00:00.000Z"
+             *     ]
+             */
+            months: string[];
+            /** @example 2400000 */
+            amount: number;
         };
     };
     responses: never;
@@ -2983,6 +3109,72 @@ export interface operations {
             };
             /** @description Base de données injoignable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DashboardController_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardEntity"];
+                };
+            };
+            /** @description Token manquant ou invalide */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DashboardController_lateContracts: {
+        parameters: {
+            query?: {
+                /** @description Nombre d'éléments à ignorer */
+                skip?: number;
+                /** @description Nombre d'éléments à retourner */
+                take?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedDto"] & {
+                        items?: components["schemas"]["DashboardLateContractEntity"][];
+                    };
+                };
+            };
+            /** @description Paramètres de pagination invalides */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Token manquant ou invalide */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

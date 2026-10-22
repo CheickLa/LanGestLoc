@@ -277,9 +277,23 @@ async function main() {
     depositPaymentMethod: 'CASH',
     depositPaymentDate: today,
   };
+  const dash0 = await req('GET', '/dashboard', { token: adminToken });
+  expect('GET /dashboard (ADMIN) → 200', dash0, 200);
   const contract1 = await req('POST', '/contracts', { token: adminToken, body: contractBody });
   expect('POST /contracts (ADMIN) → 201 (crée deposit+rent+DEPOSIT_HELD)', contract1, 201);
   const c1 = contract1.json?.id;
+  const dash1 = await req('GET', '/dashboard', { token: adminToken });
+  check(
+    'dashboard : un contrat actif de plus',
+    dash1.json?.contracts?.active === dash0.json?.contracts?.active + 1,
+    `avant=${dash0.json?.contracts?.active} après=${dash1.json?.contracts?.active}`,
+  );
+  check(
+    "dashboard : la caution versée ne compte pas dans l'encaissé",
+    typeof dash1.json?.collected?.amount === 'number' &&
+      dash1.json.collected.amount === dash0.json?.collected?.amount,
+    `avant=${dash0.json?.collected?.amount} après=${dash1.json?.collected?.amount}`,
+  );
 
   const dupContract = await req('POST', '/contracts', { token: adminToken, body: contractBody });
   expect('POST /contracts 2e contrat actif même local → 409', dupContract, 409);
@@ -365,6 +379,20 @@ async function main() {
     pay1.json?.contract?.local?.id === local1.id && pay1.json?.contract?.tenant?.id === tenant1.json.id,
   );
   expect('POST /payments mois déjà soldé → 409', await payUntil(adminToken, c1, currentMonth, 500000), 409);
+
+  const dash2 = await req('GET', '/dashboard', { token: adminToken });
+  check(
+    "dashboard : l'encaissé du mois augmente du loyer payé",
+    dash2.json?.collected?.amount === dash1.json?.collected?.amount + 500000 &&
+      dash2.json?.collected?.payments === dash1.json?.collected?.payments + 1,
+    `avant=${JSON.stringify(dash1.json?.collected)} après=${JSON.stringify(dash2.json?.collected)}`,
+  );
+  check(
+    "dashboard : le dernier mois de l'historique égale l'encaissé",
+    typeof dash2.json?.collected?.amount === 'number' &&
+      dash2.json?.monthly?.at(-1)?.amount === dash2.json.collected.amount,
+    `monthly=${JSON.stringify(dash2.json?.monthly?.at(-1))} collected=${dash2.json?.collected?.amount}`,
+  );
 
   const payments = await req('GET', '/payments?skip=0&take=5', { token: adminToken });
   expect('GET /payments (paginé) → 200', payments, 200);
@@ -720,6 +748,32 @@ async function main() {
   check('contrat démarré il y a 2 mois créé', cl.status === 201, `status=${cl.status}`);
   const clId = cl.json?.id;
 
+  const dashL = await req('GET', '/dashboard', { token: adminToken });
+  check(
+    "dashboard : la liste des retards n'est plus dans /dashboard",
+    typeof dashL.json?.late?.count === 'number' &&
+      typeof dashL.json.late.amount === 'number' &&
+      !('contracts' in dashL.json.late),
+    `clés=${Object.keys(dashL.json?.late ?? {})}`,
+  );
+  let lateL;
+  let latePage;
+  for (let skip = 0; ; skip += 100) {
+    latePage = await req('GET', `/dashboard/late-contracts?take=100&skip=${skip}`, { token: adminToken });
+    lateL = latePage.json?.items?.find((x) => x.contractId === clId);
+    if (lateL || latePage.status !== 200 || typeof latePage.json?.total !== 'number' || skip + 100 >= latePage.json.total) break;
+  }
+  check(
+    'dashboard : le contrat en retard est listé, à partir de M-2',
+    !!lateL && lateL.months?.[0]?.startsWith(firstOfOffset(-2)),
+    `status=${latePage.status} entrée=${JSON.stringify(lateL)}`,
+  );
+  expect(
+    'GET /dashboard/late-contracts?take=0 → 400',
+    await req('GET', '/dashboard/late-contracts?take=0', { token: adminToken }),
+    400,
+  );
+
   const duesL = await req('GET', `/rent-dues/contract/${clId}`, { token: adminToken });
   const dueOfL = (offset) => (duesL.json || []).find((d) => d.month?.startsWith(firstOfOffset(offset)));
   check("l'échéance de M-2 naît LATE", dueOfL(-2)?.status === 'LATE', `status=${dueOfL(-2)?.status}`);
@@ -887,6 +941,11 @@ async function main() {
   });
   const agentToken = agentLogin.json?.accessToken;
   check("login de l'agent OK", !!agentToken);
+
+  expect('GET /dashboard (USER) → 200', await req('GET', '/dashboard', { token: agentToken }), 200);
+  expect('GET /dashboard sans token → 401', await req('GET', '/dashboard'), 401);
+  expect('GET /dashboard/late-contracts (USER) → 200', await req('GET', '/dashboard/late-contracts', { token: agentToken }), 200);
+  expect('GET /dashboard/late-contracts sans token → 401', await req('GET', '/dashboard/late-contracts'), 401);
 
   const agentPayable = await req('GET', `/rent-dues/contract/${c1}/payable`, { token: agentToken });
   expect("GET payable en tant qu'agent (USER) → 200", agentPayable, 200);
