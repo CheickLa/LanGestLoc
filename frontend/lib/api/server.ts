@@ -43,13 +43,15 @@ export type Paginated<T> = {
 const PAGE_SIZE = 20;
 
 /**
- * Page d'une liste lue depuis les paramètres d'URL `skip` et `q`. Le chemin est
- * le même côté API et côté front (`/tenants`…). Une page vide au-delà de la fin
- * (dernier élément supprimé, `skip` saisi à la main) renvoie à la dernière page.
+ * Page d'une liste lue depuis les paramètres d'URL `skip` et `q`. `pagePath`, le
+ * chemin de la page côté front, vaut par défaut celui de l'API (`/tenants`…). Une
+ * page vide au-delà de la fin (dernier élément supprimé, `skip` saisi à la main)
+ * renvoie à la dernière page.
  */
 export async function backendFetchPage<T>(
   path: string,
   { skip: skipParam, q }: { skip?: string; q?: string },
+  pagePath = path,
 ): Promise<{ data: Paginated<T>; search: string }> {
   const skip = Math.max(0, Number(skipParam ?? 0) || 0);
   const search = (q ?? "").trim();
@@ -68,7 +70,7 @@ export async function backendFetchPage<T>(
     if (search) target.set("q", search);
     if (lastSkip > 0) target.set("skip", String(lastSkip));
     const query = target.toString();
-    redirect(query ? `${path}?${query}` : path);
+    redirect(query ? `${pagePath}?${query}` : pagePath);
   }
 
   return { data, search };

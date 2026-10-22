@@ -47,6 +47,16 @@ export function monthShortLabel(ym: string): string {
   }).format(new Date(Date.UTC(y, m - 1, 1)));
 }
 
+/** "2026-04" → "d'avril" ; "2026-05" → "de mai". */
+export function ofMonthLabel(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  const name = new Intl.DateTimeFormat("fr-FR", {
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(y, m - 1, 1)));
+  return /^[aeiouyàâéèêîôû]/i.test(name) ? `d'${name}` : `de ${name}`;
+}
+
 /** "2026-02" → "2026-02-01". */
 export function firstDayOf(ym: string): string {
   return `${ym}-01`;
