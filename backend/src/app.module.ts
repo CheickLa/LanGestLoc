@@ -13,6 +13,7 @@ import { S3Module } from './s3/s3.module';
 import { ReceiptsModule } from './receipts/receipts.module';
 import { UsersModule } from './users/users.module';
 import { HealthModule } from './health/health.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { HealthModule } from './health/health.module';
     ReceiptsModule,
     UsersModule,
     HealthModule,
+    DashboardModule,
   ],
   controllers: [],
 })
