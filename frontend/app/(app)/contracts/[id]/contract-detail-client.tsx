@@ -53,6 +53,7 @@ import { PaymentDialog } from "@/components/payments/payment-dialog";
 import { IncreaseRentDialog } from "./increase-rent-dialog";
 import { TerminateContractDialog } from "./terminate-contract-dialog";
 import { CancelContractDialog } from "./cancel-contract-dialog";
+import { PdfLink } from "@/components/pdf-link";
 
 type ContractDetail = components["schemas"]["ContractDetailEntity"];
 type RentDue = components["schemas"]["RentDueEntity"];
@@ -141,13 +142,11 @@ export function ContractDetailClient({
                 </>
               ) : null}
               <DropdownMenuItem asChild>
-                <a
+                <PdfLink
                   href={`/api/contracts/${contract.id}/document`}
-                  target="_blank"
-                  rel="noopener"
                 >
                   <FileText className="size-4" /> Ouvrir le bail
-                </a>
+                </PdfLink>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -177,15 +176,13 @@ export function ContractDetailClient({
           <div>
             <dt className="text-[11px] uppercase tracking-wide text-faint">Bail</dt>
             <dd className="mt-1">
-              <a
+              <PdfLink
                 href={`/api/contracts/${contract.id}/document`}
-                target="_blank"
-                rel="noopener"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-primary"
               >
                 <FileText className="size-4" />
                 {contract.document ? contract.document.documentNo : "Ouvrir"}
-              </a>
+              </PdfLink>
             </dd>
           </div>
         </dl>
@@ -262,17 +259,15 @@ export function ContractDetailClient({
                     </div>
                   ) : null}
                 </div>,
-                <a
+                <PdfLink
                   key="r"
                   href={`/api/receipts/by-payment/${p.id}`}
-                  target="_blank"
-                  rel="noopener"
                   title="Ouvrir le reçu"
                   aria-label="Ouvrir le reçu"
                   className="inline-grid size-8 place-items-center rounded-lg text-primary hover:bg-info"
                 >
                   <FileText className="size-4" />
-                </a>,
+                </PdfLink>,
               ])}
             />
           </TabsContent>

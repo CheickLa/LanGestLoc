@@ -12,6 +12,7 @@ import { formatDate, formatGNF } from "@/lib/format";
 import { PAYMENT_METHOD_LABEL, PAYMENT_TYPE_LABEL, paymentPeriod } from "@/lib/payments";
 import { useSearchQuery } from "@/lib/use-search-query";
 import type { PaymentsPage } from "./page";
+import { PdfLink } from "@/components/pdf-link";
 
 type PaymentRow = components["schemas"]["PaymentWithRelationsEntity"];
 
@@ -105,17 +106,15 @@ export function PaymentsPageClient({
       icon: Receipt,
       className: "w-px whitespace-nowrap text-center",
       cell: (row) => (
-        <a
+        <PdfLink
           href={receiptHref(row)}
-          target="_blank"
-          rel="noopener"
           title="Ouvrir le reçu"
           aria-label="Ouvrir le reçu"
           onClick={(e) => e.stopPropagation()}
           className="inline-grid size-8 place-items-center rounded-lg text-primary transition-colors hover:bg-info"
         >
           <FileText className="size-4" />
-        </a>
+        </PdfLink>
       ),
     },
   ];
@@ -160,15 +159,13 @@ export function PaymentsPageClient({
           </div>
         </dl>
         <div className="mt-3 flex justify-end border-t border-border/60 pt-3">
-          <a
+          <PdfLink
             href={receiptHref(row)}
-            target="_blank"
-            rel="noopener"
             onClick={(e) => e.stopPropagation()}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground"
           >
             <FileText className="size-3.5" /> Reçu PDF
-          </a>
+          </PdfLink>
         </div>
       </div>
     );

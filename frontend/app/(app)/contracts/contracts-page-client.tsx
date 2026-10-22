@@ -12,6 +12,7 @@ import { formatGNF, formatDate } from "@/lib/format";
 import { useSearchQuery } from "@/lib/use-search-query";
 import type { ContractsPage, ContractFormData } from "./page";
 import { ContractFormDialog } from "./contract-form-dialog";
+import { PdfLink } from "@/components/pdf-link";
 
 type ContractListItem = components["schemas"]["ContractListItemEntity"];
 
@@ -93,17 +94,15 @@ export function ContractsPageClient({
       icon: FileText,
       className: "w-px whitespace-nowrap text-center",
       cell: (row) => (
-        <a
+        <PdfLink
           href={`/api/contracts/${row.id}/document`}
-          target="_blank"
-          rel="noopener"
           title="Ouvrir le bail"
           aria-label="Ouvrir le bail"
           onClick={(e) => e.stopPropagation()}
           className="inline-grid size-8 place-items-center rounded-lg text-primary transition-colors hover:bg-info"
         >
           <FileText className="size-4" />
-        </a>
+        </PdfLink>
       ),
     },
   ];
@@ -145,15 +144,13 @@ export function ContractsPageClient({
           </div>
         </dl>
         <div className="mt-3 flex justify-end border-t border-border/60 pt-3">
-          <a
+          <PdfLink
             href={`/api/contracts/${row.id}/document`}
-            target="_blank"
-            rel="noopener"
             onClick={(e) => e.stopPropagation()}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground"
           >
             <FileText className="size-3.5" /> Bail PDF
-          </a>
+          </PdfLink>
         </div>
       </div>
     );
