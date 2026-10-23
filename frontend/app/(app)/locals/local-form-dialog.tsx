@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,16 +27,9 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 
+import { localSchema, type LocalValues } from "./local-schema";
+
 type LocalListItem = components["schemas"]["LocalListItemEntity"];
-
-const localSchema = z.object({
-  code: z
-    .string()
-    .regex(/^LOCAL-\d{3}$/, "Format attendu : LOCAL-XXX (3 chiffres)."),
-  name: z.string().min(1, "Le nom est requis."),
-});
-
-type LocalValues = z.infer<typeof localSchema>;
 
 async function submitLocal(
   localId: number | null,

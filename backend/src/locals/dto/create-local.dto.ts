@@ -1,5 +1,7 @@
-import { IsNotEmpty, IsString, Matches } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+export const LOCAL_NAME_MAX_LENGTH = 40;
 
 export class CreateLocalDto {
   @ApiProperty({
@@ -17,5 +19,8 @@ export class CreateLocalDto {
   @ApiProperty({ example: 'Boutique 1' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(LOCAL_NAME_MAX_LENGTH, {
+    message: `Le nom ne doit pas dépasser ${LOCAL_NAME_MAX_LENGTH} caractères`,
+  })
   name: string;
 }

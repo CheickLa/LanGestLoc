@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,28 +27,9 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 
+import { tenantSchema, type TenantValues } from "./tenant-schema";
+
 type TenantListItem = components["schemas"]["TenantListItemEntity"];
-
-const tenantSchema = z.object({
-  name: z.string().min(2, "Le nom doit contenir au moins 2 caractères."),
-  activity: z.string().optional(),
-  phone: z.string().min(1, "Le téléphone est requis."),
-  dateOfBirth: z
-    .string()
-    .min(1, "La date de naissance est requise.")
-    .refine(
-      (value) => new Date(value) < new Date(),
-      "La date de naissance doit être dans le passé.",
-    ),
-  birthPlace: z
-    .string()
-    .min(2, "Le lieu de naissance doit contenir au moins 2 caractères."),
-  idNumber: z
-    .string()
-    .min(5, "La pièce d'identité doit contenir au moins 5 caractères."),
-});
-
-type TenantValues = z.infer<typeof tenantSchema>;
 
 async function submitTenant(
   tenantId: number | null,
