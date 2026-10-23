@@ -4,15 +4,21 @@ import {
   IsString,
   IsDateString,
   MinLength,
+  MaxLength,
   Matches,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+export const TENANT_NAME_MAX_LENGTH = 60;
 
 export class CreateTenantDto {
   @ApiProperty({ example: 'Aminata Barry' })
   @IsString({ message: 'Le nom doit être une chaîne de caractères' })
   @IsNotEmpty({ message: 'Le nom est requis' })
   @MinLength(2, { message: 'Le nom doit contenir au moins 2 caractères' })
+  @MaxLength(TENANT_NAME_MAX_LENGTH, {
+    message: `Le nom ne doit pas dépasser ${TENANT_NAME_MAX_LENGTH} caractères`,
+  })
   name: string;
 
   @ApiProperty({ example: 'Commerçant', required: false })
