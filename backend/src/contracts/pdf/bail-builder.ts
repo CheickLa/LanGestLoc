@@ -75,6 +75,18 @@ function caption(
     });
 }
 
+// Hauteur ajoutée par un texte qui passe sur plusieurs lignes.
+function extraLinesHeight(
+  doc: PDFKit.PDFDocument,
+  font: string,
+  size: number,
+  text: string,
+  width: number,
+): number {
+  doc.font(font).fontSize(size);
+  return doc.heightOfString(text, { width }) - doc.currentLineHeight(true);
+}
+
 // Montant puis « GNF » sur la même ligne de base, comme sur le reçu.
 function amountWithCurrency(
   doc: PDFKit.PDFDocument,
@@ -168,8 +180,18 @@ export function buildBailPdf(
     const cardX = MARGIN;
     const cardY = ruleY + 22;
     const cardW = CONTENT_W;
-    const partiesH = 96;
-    const termsH = 52;
+    const colW = cardW / 2 - 32;
+    const cellW = cardW / 4;
+    const partiesH =
+      96 +
+      Math.max(
+        ...[bailleur, data.tenant.name].map((name) =>
+          extraLinesHeight(doc, F.sansSemiBold, 12.5, name, colW),
+        ),
+      );
+    const termsH =
+      52 +
+      extraLinesHeight(doc, F.sansMedium, 10.5, data.local.name, cellW - 22);
     const cardH = partiesH + termsH;
     const termsY = cardY + partiesH;
     const colMid = cardX + cardW / 2;
@@ -204,7 +226,7 @@ export function buildBailPdf(
 
     // Colonne bailleur
     const lx = cardX + 16;
-    const lw = cardW / 2 - 32;
+    const lw = colW;
     caption(doc, F, 'Bailleur', lx, cardY + 14, lw, COLOR.brand);
     doc
       .font(F.sansSemiBold)
@@ -221,7 +243,7 @@ export function buildBailPdf(
 
     // Colonne locataire
     const rx = colMid + 16;
-    const rw = cardW / 2 - 32;
+    const rw = colW;
     caption(doc, F, 'Locataire', rx, cardY + 14, rw, COLOR.brand);
     doc
       .font(F.sansSemiBold)
@@ -254,7 +276,6 @@ export function buildBailPdf(
       .text(data.tenant.idNumber, { continued: false });
 
     // Rangée des termes
-    const cellW = cardW / 4;
     const term = (i: number, label: string) => {
       const cx = cardX + cellW * i + 14;
       const cw = cellW - 22;
@@ -357,22 +378,28 @@ export function buildBailPdf(
     });
 
     // ── Signatures ──
-    if (doc.y + 96 > CONTENT_BOTTOM) doc.addPage();
+    const place = `Fait à ${lieu}, le ${today}, en deux exemplaires originaux.`;
+    const gw = CONTENT_W / 4;
+    doc.font(F.sansRegular).fontSize(9.5);
+    const placeH = doc.heightOfString(place, { width: CONTENT_W });
+    doc.font(F.sansMedium).fontSize(9);
+    const signNameH = Math.max(
+      ...[bailleur, data.tenant.name].map((name) =>
+        doc.heightOfString(name, { width: gw - 16 }),
+      ),
+    );
+    if (doc.y + 18 + placeH + 26 + 44 + 6 + signNameH > CONTENT_BOTTOM) {
+      doc.addPage();
+    }
     doc.y += 18;
     doc
       .font(F.sansRegular)
       .fontSize(9.5)
       .fillColor(COLOR.muted)
-      .text(
-        `Fait à ${lieu}, le ${today}, en deux exemplaires originaux.`,
-        MARGIN,
-        doc.y,
-        { width: CONTENT_W },
-      );
+      .text(place, MARGIN, doc.y, { width: CONTENT_W });
     doc.y += 26;
 
     const gridY = doc.y;
-    const gw = CONTENT_W / 4;
     const signCells: Array<[string, string | null]> = [
       ['Le bailleur', bailleur],
       ['Le locataire', data.tenant.name],

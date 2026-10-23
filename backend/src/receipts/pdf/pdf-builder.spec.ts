@@ -1,5 +1,7 @@
 import { PaymentMethod, PaymentType } from '@generated/prisma/client';
 import PDFDocument from 'pdfkit';
+import { LOCAL_NAME_MAX_LENGTH } from '@/locals/dto/create-local.dto';
+import { TENANT_NAME_MAX_LENGTH } from '@/tenants/dto/create-tenant.dto';
 import { buildReceiptPdf, type ReceiptPayment } from './pdf-builder';
 
 const contract = {
@@ -121,5 +123,52 @@ describe('buildReceiptPdf', () => {
     const text = raw(await build(rent(2)));
     expect(text).toMatch(/\/BaseFont \/[A-Z]{6}\+Geist-/);
     expect(text).toMatch(/\/BaseFont \/[A-Z]{6}\+GeistMono-/);
+  });
+
+  describe.each([
+    [
+      'en capitales',
+      (n: number) => 'ÉTABLISSEMENTS DIALLO ET FRÈRES '.repeat(3).slice(0, n),
+    ],
+    ['sans espace', (n: number) => 'W'.repeat(n)],
+  ])('avec des noms à la limite, %s', (_, nameOf) => {
+    const withLongNames = (payment: ReceiptPayment): ReceiptPayment => ({
+      ...payment,
+      contract: {
+        ...contract,
+        tenant: { ...contract.tenant, name: nameOf(TENANT_NAME_MAX_LENGTH) },
+        local: { name: nameOf(LOCAL_NAME_MAX_LENGTH) },
+      },
+    });
+
+    it.each([
+      ['RENT', rent(2)],
+      ['DEPOSIT_HELD', deposit(PaymentType.DEPOSIT_HELD)],
+    ])('garde le reçu %s au-dessus du pied de page', async (_, payment) => {
+      const drawn: { value: string; y: number; bottom: number }[] = [];
+      const { text } = PDFDocument.prototype as PDFKit.PDFDocument;
+      const spy = jest
+        .spyOn(PDFDocument.prototype, 'text')
+        .mockImplementation(function (
+          this: PDFKit.PDFDocument,
+          ...args: Parameters<PDFKit.PDFDocument['text']>
+        ) {
+          text.apply(this, args);
+          drawn.push({
+            value: String(args[0]),
+            y: Number(args[2]),
+            bottom: this.y,
+          });
+          return this;
+        });
+      await build(withLongNames(payment));
+      spy.mockRestore();
+      const footer = drawn.findIndex(
+        (d) => d.value === 'Ce reçu fait foi du paiement.',
+      );
+      for (const d of drawn.slice(0, footer)) {
+        expect(d.bottom).toBeLessThanOrEqual(drawn[footer].y);
+      }
+    });
   });
 });
