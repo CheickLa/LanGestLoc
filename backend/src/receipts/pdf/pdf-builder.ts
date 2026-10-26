@@ -108,8 +108,8 @@ const ROW_AMOUNT: Style = { ...PERIOD, font: 'monoRegular', tnum: true };
 const FOOTER: Style = { font: 'sansRegular', size: 7.2, color: COLOR.faint };
 const FOOTER_MONO: Style = { ...FOOTER, font: 'monoRegular' };
 
-// Du haut de la ligne du montant à sa ligne de base (Geist 30 pt, interligne 1).
-const AMOUNT_BASELINE = 25.6;
+// Du haut de la ligne du montant à sa ligne de base (Plex Sans 30 pt, interligne 1).
+const AMOUNT_BASELINE = 26.3;
 // Flèche des périodes, posée à mi-hauteur d'x sous le haut de la ligne.
 const ARROW = { gap: 3.5, length: 7, head: 2.2, drop: 7.3 };
 

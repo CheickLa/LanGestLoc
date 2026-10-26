@@ -119,10 +119,10 @@ describe('buildReceiptPdf', () => {
     },
   );
 
-  it('embarque Geist Sans et Geist Mono', async () => {
+  it('embarque IBM Plex Sans et IBM Plex Mono', async () => {
     const text = raw(await build(rent(2)));
-    expect(text).toMatch(/\/BaseFont \/[A-Z]{6}\+Geist-/);
-    expect(text).toMatch(/\/BaseFont \/[A-Z]{6}\+GeistMono-/);
+    expect(text).toMatch(/\/BaseFont \/[A-Z]{6}\+IBMPlexSans-/);
+    expect(text).toMatch(/\/BaseFont \/[A-Z]{6}\+IBMPlexMono-/);
   });
 
   describe.each([

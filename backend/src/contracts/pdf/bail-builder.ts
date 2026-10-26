@@ -53,7 +53,7 @@ function formatDate(date: Date): string {
   return new Date(date).toLocaleDateString('fr-FR', { timeZone: 'UTC' });
 }
 
-// Petite légende en capitales (Geist Mono) — rôles et libellés de la fiche.
+// Petite légende en capitales (Plex Mono) — rôles et libellés de la fiche.
 function caption(
   doc: PDFKit.PDFDocument,
   F: FontSet,
