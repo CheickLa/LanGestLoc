@@ -13,6 +13,10 @@ async function bootstrap() {
 
   app.set('trust proxy', trustProxyHops);
 
+  // Node tourne en PID 1 dans l'image : sans écouteur, le SIGTERM de Docker est
+  // ignoré et l'API est tuée au bout de 10 s.
+  app.enableShutdownHooks();
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
