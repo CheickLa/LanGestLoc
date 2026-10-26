@@ -12,14 +12,14 @@ export interface FontSet {
 const FONT_DIR = path.join(process.cwd(), 'assets', 'fonts');
 
 const FILES = {
-  sansRegular: 'Geist-Regular.ttf',
-  sansMedium: 'Geist-Medium.ttf',
-  sansSemiBold: 'Geist-SemiBold.ttf',
-  monoRegular: 'GeistMono-Regular.ttf',
-  monoMedium: 'GeistMono-Medium.ttf',
+  sansRegular: 'IBMPlexSans-Regular.ttf',
+  sansMedium: 'IBMPlexSans-Medium.ttf',
+  sansSemiBold: 'IBMPlexSans-SemiBold.ttf',
+  monoRegular: 'IBMPlexMono-Regular.ttf',
+  monoMedium: 'IBMPlexMono-Medium.ttf',
 } as const;
 
-// Polices standard pdfkit (toujours disponibles) — repli si Geist absent.
+// Polices standard pdfkit (toujours disponibles) — repli si Plex absent.
 const FALLBACK: FontSet = {
   sansRegular: 'Helvetica',
   sansMedium: 'Helvetica-Bold',
@@ -29,7 +29,7 @@ const FALLBACK: FontSet = {
 };
 
 /**
- * Enregistre Geist Sans/Mono dans le document si les fichiers de police sont
+ * Enregistre IBM Plex Sans/Mono dans le document si les fichiers de police sont
  * présents dans `assets/fonts/`, sinon retourne les polices standard pdfkit
  */
 export function registerFonts(doc: PDFKit.PDFDocument): FontSet {
@@ -39,11 +39,11 @@ export function registerFonts(doc: PDFKit.PDFDocument): FontSet {
   if (!present) return FALLBACK;
 
   const names: FontSet = {
-    sansRegular: 'GeistSans',
-    sansMedium: 'GeistSansMedium',
-    sansSemiBold: 'GeistSansSemiBold',
-    monoRegular: 'GeistMono',
-    monoMedium: 'GeistMonoMedium',
+    sansRegular: 'PlexSans',
+    sansMedium: 'PlexSansMedium',
+    sansSemiBold: 'PlexSansSemiBold',
+    monoRegular: 'PlexMono',
+    monoMedium: 'PlexMonoMedium',
   };
   doc.registerFont(names.sansRegular, path.join(FONT_DIR, FILES.sansRegular));
   doc.registerFont(names.sansMedium, path.join(FONT_DIR, FILES.sansMedium));

@@ -280,8 +280,8 @@ jobs:
       - name: Vérifier les polices des PDF dans l'image
         run: >-
           docker run --rm --entrypoint ls "$IMAGE"
-          assets/fonts/Geist-Regular.ttf assets/fonts/Geist-Medium.ttf assets/fonts/Geist-SemiBold.ttf
-          assets/fonts/GeistMono-Regular.ttf assets/fonts/GeistMono-Medium.ttf
+          assets/fonts/IBMPlexSans-Regular.ttf assets/fonts/IBMPlexSans-Medium.ttf assets/fonts/IBMPlexSans-SemiBold.ttf
+          assets/fonts/IBMPlexMono-Regular.ttf assets/fonts/IBMPlexMono-Medium.ttf
 
       - name: Journal de l'API (en cas d'échec)
         if: failure()
