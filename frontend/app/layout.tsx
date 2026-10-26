@@ -1,17 +1,24 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const plexSans = IBM_Plex_Sans({
+// Polices dans le dépôt : le build ne dépend pas de Google Fonts.
+const plexSans = localFont({
   variable: "--font-plex-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  src: [
+    { path: "./fonts/IBMPlexSans-400.woff2", weight: "400" },
+    { path: "./fonts/IBMPlexSans-500.woff2", weight: "500" },
+    { path: "./fonts/IBMPlexSans-600.woff2", weight: "600" },
+    { path: "./fonts/IBMPlexSans-700.woff2", weight: "700" },
+  ],
 });
 
-const plexMono = IBM_Plex_Mono({
+const plexMono = localFont({
   variable: "--font-plex-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
+  src: [
+    { path: "./fonts/IBMPlexMono-400.woff2", weight: "400" },
+    { path: "./fonts/IBMPlexMono-500.woff2", weight: "500" },
+  ],
 });
 
 export const metadata: Metadata = {
