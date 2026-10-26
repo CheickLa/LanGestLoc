@@ -181,6 +181,28 @@ scenario_1() {
   ok "A en ligne, migrations appliquées, sauvegarde en 600, marqueur inséré"
 }
 
+test_log_rotation() {
+  step "Logs Docker de l'API et de la base limités en taille"
+  local service config
+  for service in api db; do
+    config=$(docker inspect --format '{{.HostConfig.LogConfig.Type}} {{index .HostConfig.LogConfig.Config "max-size"}} {{index .HostConfig.LogConfig.Config "max-file"}}' "$(compose_t ps -q "$service")")
+    [[ $config == 'json-file 10m 5' ]] || fail "logs de $service sans rotation ($config)"
+  done
+  ok "json-file, 5 fichiers de 10 Mo au plus"
+}
+
+test_graceful_stop() {
+  step "Arrêt de l'API : elle s'arrête d'elle-même au SIGTERM, sans SIGKILL"
+  local id
+  id=$(compose_t ps -q api)
+  compose_t stop api > /dev/null 2>&1
+  local code
+  code=$(docker inspect --format '{{.State.ExitCode}}' "$id")
+  [[ $code == 0 ]] || fail "code de sortie $code (137 : tuée par Docker au bout de 10 s)"
+  compose_t up -d --wait api > /dev/null 2>&1 || fail "l'API ne redémarre pas"
+  ok "sortie 0, API redémarrée"
+}
+
 scenario_2() {
   step "Scénario 2 : version cassée avec migration (B), retour arrière et restauration"
   build_image_b
@@ -399,6 +421,8 @@ main() {
   test_restore_db
   build_image_a
   scenario_1
+  test_log_rotation
+  test_graceful_stop
   scenario_2
   test_backup_failure
   scenario_3

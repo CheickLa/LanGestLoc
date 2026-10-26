@@ -3,10 +3,18 @@
 # Aucun port publié : seul Caddy est joignable depuis Internet
 name: langestloc
 
+# Sans limite, les logs Docker grossissent jusqu'à remplir le disque
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
 services:
   api:
     image: ghcr.io/cheickla/langestloc-api:${API_IMAGE_TAG:?API_IMAGE_TAG manquant dans .env (SHA complet du commit publié par la CI)}
     restart: unless-stopped
+    logging: *logging
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
@@ -25,6 +33,7 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
