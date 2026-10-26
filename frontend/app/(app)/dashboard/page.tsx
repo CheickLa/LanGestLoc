@@ -39,7 +39,7 @@ export default async function DashboardPage({
           value={
             <>
               {formatNumber(collected.amount)}
-              <span className="hidden text-[15px] font-medium tracking-normal text-muted-foreground md:inline">
+              <span className="text-[13px] font-medium tracking-normal text-muted-foreground md:text-[15px]">
                 {" "}
                 GNF
               </span>
@@ -47,7 +47,6 @@ export default async function DashboardPage({
           }
           sub={
             <>
-              <span className="md:hidden">GNF, </span>
               {collected.payments} {collected.payments < 2 ? "paiement" : "paiements"}
               <span className="hidden md:inline">
                 {collected.payments < 2 ? " enregistré" : " enregistrés"}
