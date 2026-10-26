@@ -4,21 +4,7 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import { deliverPdf, downloadFile, pdfMode } from "@/lib/pdf";
-
-function offerShare(file: File) {
-  toast("Le document est prêt.", {
-    action: {
-      label: "Partager le document",
-      onClick: () => {
-        navigator.share({ files: [file], title: file.name }).catch((error: unknown) => {
-          if (error instanceof DOMException && error.name === "AbortError") return;
-          downloadFile(file);
-        });
-      },
-    },
-  });
-}
+import { downloadFile, fetchPdf } from "@/lib/pdf";
 
 export function PdfLink({
   href,
@@ -30,26 +16,14 @@ export function PdfLink({
 
   async function handleClick(event: React.MouseEvent<HTMLAnchorElement>) {
     onClick?.(event);
-
-    const mode = pdfMode({
-      coarsePointer: window.matchMedia("(pointer: coarse)").matches,
-      canShareFiles:
-        navigator.canShare?.({
-          files: [new File([], "x.pdf", { type: "application/pdf" })],
-        }) ?? false,
-    });
-    if (mode === "tab") return;
+    // Sur téléphone, suivre le lien coince l'appli installée : on télécharge le PDF, le téléphone l'affiche.
+    if (!window.matchMedia("(pointer: coarse)").matches) return;
 
     event.preventDefault();
     if (busy) return;
     setBusy(true);
     try {
-      await deliverPdf(href, mode, {
-        fetch,
-        share: (data) => navigator.share(data),
-        download: downloadFile,
-        shareBlocked: offerShare,
-      });
+      downloadFile(await fetchPdf(href));
     } catch {
       toast.error("Le document n'a pas pu être récupéré.");
     } finally {

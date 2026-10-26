@@ -1,10 +1,3 @@
-export type PdfMode = "share" | "download" | "tab";
-
-export function pdfMode(env: { coarsePointer: boolean; canShareFiles: boolean }): PdfMode {
-  if (!env.coarsePointer) return "tab";
-  return env.canShareFiles ? "share" : "download";
-}
-
 export function filenameFromDisposition(header: string | null, fallback: string): string {
   const match = header?.match(/filename="?([^";]+)"?/i);
   return match ? match[1] : fallback;
@@ -28,35 +21,6 @@ export async function fetchPdf(url: string, fetcher: typeof fetch = fetch): Prom
     "document.pdf",
   );
   return new File([await response.blob()], name, { type: "application/pdf" });
-}
-
-export type PdfDeps = {
-  fetch: typeof fetch;
-  share: (data: ShareData) => Promise<void>;
-  download: (file: File) => void;
-  shareBlocked: (file: File) => void;
-};
-
-export async function deliverPdf(
-  url: string,
-  mode: "share" | "download",
-  deps: PdfDeps,
-): Promise<void> {
-  const file = await fetchPdf(url, deps.fetch);
-  if (mode === "download") {
-    deps.download(file);
-    return;
-  }
-  try {
-    await deps.share({ files: [file], title: file.name });
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") return;
-    if (error instanceof DOMException && error.name === "NotAllowedError") {
-      deps.shareBlocked(file);
-      return;
-    }
-    deps.download(file);
-  }
 }
 
 export function downloadFile(file: File): void {
