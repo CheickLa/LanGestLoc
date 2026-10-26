@@ -56,8 +56,10 @@ export async function requireUser(): Promise<UserEntity> {
   if (session.status === "authenticated") return session.user;
 
   if (session.status === "rejected") redirect(LOGOUT_PATH);
+  if (session.status === "anonymous") redirect(LOGIN_PATH);
 
-  redirect(LOGIN_PATH);
+  // Pas de redirection : avec le cookie, /login renverrait ici et bouclerait
+  throw new Error("API indisponible");
 }
 
 export async function requireAdmin(): Promise<UserEntity> {
