@@ -278,7 +278,9 @@ Healthchecks.io a deux contrôles : « Sauvegarde quotidienne » (période 1 jou
 marge 1 h) et « Test de restauration » (7 jours, marge 1 jour).
 
 Sur Vercel, le projet a `frontend` comme Root Directory, la variable de
-Production `BACKEND_URL=https://api.langestloc.cheickla.fr` et le domaine
+Production `BACKEND_URL=https://api.langestloc.cheickla.fr`, la variable de
+Production `NEXT_PUBLIC_GA_ID` (ID de mesure Google Analytics de la page
+d'accueil ; sans elle, ni bandeau ni mesure) et le domaine
 `langestloc.cheickla.fr`. Ses Deployment Checks portent sur les 5 jobs du CI,
 en Blocking, et l'attribution automatique des domaines de production est
 active.

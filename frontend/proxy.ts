@@ -6,11 +6,19 @@ import {
   DEFAULT_AUTHENTICATED_PATH,
   HOME_PATH,
   LOGIN_PATH,
+  PRIVACY_PATH,
 } from "@/lib/auth";
 
 const PUBLIC_PATHS = [HOME_PATH, LOGIN_PATH];
 
+// Lisibles avec ou sans session.
+const OPEN_PATHS = [PRIVACY_PATH];
+
 export function proxy(request: NextRequest): NextResponse {
+  if (OPEN_PATHS.includes(request.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
+
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
   const isPublicPage = PUBLIC_PATHS.includes(request.nextUrl.pathname);
 
