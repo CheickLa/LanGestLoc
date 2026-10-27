@@ -4,6 +4,8 @@ export const HOME_PATH = "/";
 
 export const LOGIN_PATH = "/login";
 
+export const PRIVACY_PATH = "/confidentialite";
+
 export const LOGOUT_PATH = "/api/auth/logout";
 
 export const DEFAULT_AUTHENTICATED_PATH = "/dashboard";

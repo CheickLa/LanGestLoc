@@ -3,11 +3,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { Smartphone } from "lucide-react";
 
+import { AnalyticsConsent, CookieSettingsButton } from "@/components/landing/analytics-consent";
 import { DocumentStack } from "@/components/landing/document-stack";
 import { PhonePreview } from "@/components/landing/phone-preview";
 import { RentRegister } from "@/components/landing/rent-register";
 import { Button } from "@/components/ui/button";
-import { HOME_PATH, LOGIN_PATH } from "@/lib/auth";
+import { HOME_PATH, LOGIN_PATH, PRIVACY_PATH } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -280,11 +281,18 @@ export default function LandingPage() {
             <LoginButton />
             <span className="text-sm text-muted-foreground">Votre compte vous est donné par l&apos;administrateur.</span>
           </div>
-          <footer className="mt-14 border-t border-border py-6 text-center text-[13px] text-muted-foreground lg:mt-24">
-            LanGestLoc, gestion locative de locaux commerciaux
+          <footer className="mt-14 flex flex-col items-center gap-1.5 border-t border-border py-6 text-center text-[13px] text-muted-foreground lg:mt-24">
+            <p>LanGestLoc, gestion locative de locaux commerciaux</p>
+            <div className="flex gap-4">
+              <Link href={PRIVACY_PATH} className="underline-offset-4 hover:underline">
+                Confidentialité
+              </Link>
+              <CookieSettingsButton />
+            </div>
           </footer>
         </Container>
       </section>
+      <AnalyticsConsent />
     </main>
   );
 }

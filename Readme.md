@@ -29,6 +29,7 @@ It is used mostly on phones, and works just as well on desktop. On a phone it is
 - **Documents**: leases and receipts generated as PDFs with PDFKit, in the app's branding, then stored on AWS S3 (AWS SDK v3). The upload to S3 happens after the database commit, never during it.
 - **Containers**: Docker, with Docker Compose both locally and in production.
 - **Shared types**: front-end types are generated from the API's OpenAPI spec (openapi-typescript). No API response is typed by hand.
+- **Analytics**: Google Analytics 4, loaded once the visitor accepts the cookie banner.
 
 ## Security
 
@@ -62,5 +63,7 @@ You need Docker, Node.js (npm) and a `.env` file at the root (database, JWT, S3,
 docker compose up        # Postgres, local S3 storage (RustFS) and the API on port 3000
 cd frontend && npm install && npm run dev   # front end on port 3001
 ```
+
+The cookie banner only shows when `NEXT_PUBLIC_GA_ID` is set: `NEXT_PUBLIC_GA_ID=G-TEST123 npm run dev` shows it locally.
 
 Prisma Studio: `cd backend && npx prisma studio`. It reads `DATABASE_URL` from `backend/.env`, not from the root `.env`: the database is on `localhost:5432` there.
