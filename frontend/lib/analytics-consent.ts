@@ -17,14 +17,23 @@ function isStoredConsent(value: unknown): value is StoredConsent {
   );
 }
 
+// Le 31 août plus six mois donne le 28 février, pas le 3 mars.
+function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate();
+  result.setUTCDate(Math.min(date.getUTCDate(), lastDay));
+  return result;
+}
+
 export function readConsent(getStorage: () => Storage, now: Date): ConsentChoice | null {
   try {
     const raw = getStorage().getItem(CONSENT_STORAGE_KEY);
     if (raw === null) return null;
     const stored: unknown = JSON.parse(raw);
     if (!isStoredConsent(stored)) return null;
-    const expiresAt = new Date(stored.at);
-    expiresAt.setUTCMonth(expiresAt.getUTCMonth() + CONSENT_LIFETIME_MONTHS);
+    const expiresAt = addMonths(new Date(stored.at), CONSENT_LIFETIME_MONTHS);
     return now < expiresAt ? stored.choice : null;
   } catch {
     return null;

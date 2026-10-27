@@ -48,6 +48,13 @@ describe("readConsent", () => {
     expect(readConsent(() => storage, new Date("2026-10-15T10:00:00Z"))).toBeNull();
   });
 
+  it("arrête les six mois au dernier jour d'un mois plus court", () => {
+    const storage = memoryStorage();
+    writeConsent(() => storage, "granted", new Date("2026-08-31T10:00:00Z"));
+    expect(readConsent(() => storage, new Date("2027-02-27T10:00:00Z"))).toBe("granted");
+    expect(readConsent(() => storage, new Date("2027-02-28T10:00:00Z"))).toBeNull();
+  });
+
   it("renvoie null sans choix enregistré", () => {
     expect(readConsent(() => memoryStorage(), CHOSEN_AT)).toBeNull();
   });

@@ -41,7 +41,7 @@ function subscribe(onChange: () => void) {
   };
 }
 
-const getChoice = (): ConsentChoice | null => sessionChoice ?? readConsent(localStorage, new Date());
+const getChoice = (): ConsentChoice | null => readConsent(localStorage, new Date()) ?? sessionChoice ?? null;
 
 // undefined : choix inconnu côté serveur, le bandeau attend le navigateur.
 const getServerChoice = (): ConsentChoice | null | undefined => undefined;
@@ -79,7 +79,10 @@ export function AnalyticsConsent() {
   function decide(next: ConsentChoice) {
     sessionChoice = next;
     writeConsent(localStorage, next, new Date());
-    if (next === "denied") deleteGaCookies();
+    if (next === "denied") {
+      setTracking(false);
+      deleteGaCookies();
+    }
     setReopened(false);
     window.dispatchEvent(new Event(CHANGE_EVENT));
   }

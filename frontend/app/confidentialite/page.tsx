@@ -25,7 +25,7 @@ const COOKIES = [
   {
     name: "langestloc_token",
     purpose: "Vous garder connecté à l'application, posé à la connexion. Indispensable, il ne demande pas d'accord.",
-    lifetime: "La session",
+    lifetime: "1 jour",
   },
 ];
 
