@@ -65,7 +65,8 @@ export class AuthController {
   })
   @ApiResponse({ status: 401, description: 'Email ou mot de passe incorrect' })
   login(
-    @Request() req: { user: { id: number; tokenVersion: number } },
+    @Request()
+    req: { user: Awaited<ReturnType<AuthService['validateUser']>> },
     @Body() _dto: LoginDto,
   ) {
     return this.authService.login(req.user);

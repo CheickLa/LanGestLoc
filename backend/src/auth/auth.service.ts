@@ -7,6 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '@/prisma/prisma.service';
 import { hashPassword } from '@/common/password';
+import { userSafeSelect } from '@/users/users.service';
 import { RegisterDto } from '@/auth/dto';
 import { JwtPayload } from '@/auth/strategies/jwt.strategy';
 import { Prisma, Role } from '@generated/prisma/client';
@@ -29,13 +30,7 @@ export class AuthService {
           password: hashedPassword,
           role: dto.role ?? Role.USER,
         },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          createdAt: true,
-        },
+        select: userSafeSelect,
       });
     } catch (error) {
       if (
@@ -80,13 +75,7 @@ export class AuthService {
   async getProfile(userId: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
-      },
+      select: userSafeSelect,
     });
 
     if (!user) {

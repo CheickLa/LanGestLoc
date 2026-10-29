@@ -14,7 +14,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 
-const userSafeSelect = {
+export const userSafeSelect = {
   id: true,
   name: true,
   email: true,
