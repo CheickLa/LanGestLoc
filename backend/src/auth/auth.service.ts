@@ -8,6 +8,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '@/prisma/prisma.service';
 import { hashPassword } from '@/common/password';
 import { RegisterDto } from '@/auth/dto';
+import { JwtPayload } from '@/auth/strategies/jwt.strategy';
 import { Prisma, Role } from '@generated/prisma/client';
 
 @Injectable()
@@ -30,7 +31,7 @@ export class AuthService {
         },
       });
 
-      return this.buildTokenResponse(user.id, user.email, user.role);
+      return this.login(user);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -57,11 +58,18 @@ export class AuthService {
       throw new UnauthorizedException('Email ou mot de passe incorrect');
     }
 
-    return { id: user.id, email: user.email, name: user.name, role: user.role };
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      tokenVersion: user.tokenVersion,
+    };
   }
 
-  login(user: { id: number; email: string; role: Role }) {
-    return this.buildTokenResponse(user.id, user.email, user.role);
+  login(user: { id: number; tokenVersion: number }) {
+    const payload: JwtPayload = { sub: user.id, ver: user.tokenVersion };
+    return { accessToken: this.jwtService.sign(payload) };
   }
 
   async getProfile(userId: number) {
@@ -83,12 +91,5 @@ export class AuthService {
     }
 
     return user;
-  }
-
-  private buildTokenResponse(userId: number, email: string, role: Role) {
-    const payload = { sub: userId, email, role };
-    return {
-      accessToken: this.jwtService.sign(payload),
-    };
   }
 }

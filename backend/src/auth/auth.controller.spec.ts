@@ -40,7 +40,7 @@ describe('AuthController', () => {
 
   describe('POST /auth/login', () => {
     it('should call authService.login with req.user', () => {
-      const user = { id: 1, email: 'john@test.com', role: Role.USER };
+      const user = { id: 1, tokenVersion: 0 };
       const req = { user };
       mockAuthService.login.mockReturnValue({ accessToken: 'token' });
 

@@ -57,12 +57,14 @@ enum DepositStatus {
 
 /// Utilisateur de l'application (ADMIN ou USER)
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role
-  createdAt DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  password     String
+  role         Role
+  createdAt    DateTime @default(now())
+  /// Incrémentée à chaque changement de mot de passe : invalide les jetons déjà émis
+  tokenVersion Int      @default(0)
 
   contracts Contract[] @relation("CreatedContracts")
   payments  Payment[]

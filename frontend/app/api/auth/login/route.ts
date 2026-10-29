@@ -3,11 +3,10 @@ import { NextResponse } from "next/server";
 
 import type { components } from "@/lib/api/schema";
 import { AUTH_COOKIE_NAME } from "@/lib/auth";
+import { sessionMaxAge } from "@/lib/session-cookie";
 
 type LoginDto = components["schemas"]["LoginDto"];
 type AuthTokenEntity = components["schemas"]["AuthTokenEntity"];
-
-const DEFAULT_COOKIE_MAX_AGE = 60 * 60 * 24;
 
 export async function POST(request: Request): Promise<NextResponse> {
   let body: unknown;
@@ -84,14 +83,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  if (typeof data?.accessToken !== "string" || data.accessToken.length === 0) {
+  const maxAge =
+    typeof data?.accessToken === "string" ? sessionMaxAge(data.accessToken) : null;
+  if (maxAge === null) {
     return NextResponse.json(
       { message: "Réponse inattendue du serveur." },
       { status: 502 },
     );
   }
-
-  const maxAge = Number(process.env.AUTH_COOKIE_MAX_AGE ?? DEFAULT_COOKIE_MAX_AGE);
 
   const cookieStore = await cookies();
   cookieStore.set(AUTH_COOKIE_NAME, data.accessToken, {
@@ -99,7 +98,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: Number.isFinite(maxAge) && maxAge > 0 ? maxAge : DEFAULT_COOKIE_MAX_AGE,
+    maxAge,
   });
 
   return NextResponse.json({ ok: true });

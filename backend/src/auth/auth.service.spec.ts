@@ -48,6 +48,7 @@ describe('AuthService', () => {
         id: 1,
         email: dto.email,
         role: Role.USER,
+        tokenVersion: 0,
       });
 
       const result = await service.register(dto);
@@ -61,11 +62,7 @@ describe('AuthService', () => {
           role: Role.USER,
         },
       });
-      expect(mockJwtService.sign).toHaveBeenCalledWith({
-        sub: 1,
-        email: dto.email,
-        role: Role.USER,
-      });
+      expect(mockJwtService.sign).toHaveBeenCalledWith({ sub: 1, ver: 0 });
       expect(result).toEqual({ accessToken: 'mock-jwt-token' });
     });
 
@@ -118,12 +115,19 @@ describe('AuthService', () => {
         name: 'John',
         role: Role.USER,
         password: 'hashed',
+        tokenVersion: 4,
       });
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       const result = await service.validateUser(email, password);
 
-      expect(result).toEqual({ id: 1, email, name: 'John', role: Role.USER });
+      expect(result).toEqual({
+        id: 1,
+        email,
+        name: 'John',
+        role: Role.USER,
+        tokenVersion: 4,
+      });
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
@@ -151,16 +155,10 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('should return an access token', () => {
-      const user = { id: 1, email: 'john@test.com', role: Role.USER };
+    it('should sign the token with the user token version', () => {
+      const result = service.login({ id: 1, tokenVersion: 3 });
 
-      const result = service.login(user);
-
-      expect(mockJwtService.sign).toHaveBeenCalledWith({
-        sub: 1,
-        email: user.email,
-        role: Role.USER,
-      });
+      expect(mockJwtService.sign).toHaveBeenCalledWith({ sub: 1, ver: 3 });
       expect(result).toEqual({ accessToken: 'mock-jwt-token' });
     });
   });
