@@ -190,6 +190,9 @@ async function main() {
   const adminToken = login.json?.accessToken;
   check('login renvoie un accessToken', !!adminToken);
 
+  const claims = JSON.parse(Buffer.from(adminToken.split('.')[1], 'base64url').toString());
+  check('la session dure 45 jours', claims.exp - claims.iat === 45 * 24 * 3600, `exp-iat=${claims.exp - claims.iat}`);
+
   // Sur téléphone, le clavier met souvent une majuscule en tête du champ e-mail
   const upperLogin = await req('POST', '/auth/login', {
     body: { email: ADMIN_EMAIL.toUpperCase(), password: ADMIN_PASSWORD },
@@ -918,11 +921,16 @@ async function main() {
     body: { name: 'E2E User', email: newUserEmail, password: userPwd, role: 'USER' },
   });
   expect('POST /auth/register (ADMIN crée un USER) → 201', register, 201);
+  check(
+    'register renvoie le compte créé, sans jeton',
+    register.json?.email === newUserEmail && !('accessToken' in (register.json ?? {})),
+    JSON.stringify(register.json),
+  );
 
   const userLogin = await req('POST', '/auth/login', {
     body: { email: newUserEmail, password: userPwd },
   });
-  const userToken = userLogin.json?.accessToken;
+  let userToken = userLogin.json?.accessToken;
   check('login du nouvel utilisateur OK', !!userToken);
 
   const agentEmail = `e2e-agent-${TS}@test.com`;
@@ -984,6 +992,15 @@ async function main() {
     body: { currentPassword: userPwd, newPassword: 'N3wP@ssw0rd!' },
   });
   expect('PATCH /users/me/password → 200', pwdChange, 200);
+  expect(
+    'GET /auth/me avec le jeton d\'avant le changement de mot de passe → 401',
+    await req('GET', '/auth/me', { token: userToken }),
+    401,
+  );
+  userToken = (
+    await req('POST', '/auth/login', { body: { email: newUserEmail, password: 'N3wP@ssw0rd!' } })
+  ).json?.accessToken;
+  check('reconnexion avec le nouveau mot de passe OK', !!userToken);
 
   // contrôle des rôles : un USER ne peut pas faire d'actions ADMIN
   const userForbidLocal = await req('POST', '/locals', {
@@ -1041,6 +1058,11 @@ async function main() {
     200,
   );
   expect(
+    "GET /auth/me avec le jeton de l'agent d'avant la réinitialisation → 401",
+    await req('GET', '/auth/me', { token: agentToken }),
+    401,
+  );
+  expect(
     "login de l'agent avec l'ancien mot de passe → 401",
     await req('POST', '/auth/login', { body: { email: agentEmail, password: userPwd } }),
     401,
@@ -1058,8 +1080,24 @@ async function main() {
     });
     expect('PATCH /users/:id (ADMIN) → 200', adminPatchUser, 200);
 
+    expect(
+      'PATCH /users/:id (ADMIN promeut le USER) → 200',
+      await req('PATCH', `/users/${createdUser.id}`, { token: adminToken, body: { role: 'ADMIN' } }),
+      200,
+    );
+    expect(
+      'GET /users avec le jeton émis quand il était USER → 200 (rôle lu en base)',
+      await req('GET', '/users', { token: userToken }),
+      200,
+    );
+
     const del = await req('DELETE', `/users/${createdUser.id}`, { token: adminToken });
     expect('DELETE /users/:id (ADMIN) → 204', del, 204);
+    expect(
+      "GET /auth/me avec le jeton d'un utilisateur supprimé → 401",
+      await req('GET', '/auth/me', { token: userToken }),
+      401,
+    );
   }
 
   // ===== RATE-LIMITING =====

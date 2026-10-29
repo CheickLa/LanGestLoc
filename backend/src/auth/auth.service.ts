@@ -7,7 +7,9 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '@/prisma/prisma.service';
 import { hashPassword } from '@/common/password';
+import { userSafeSelect } from '@/users/users.service';
 import { RegisterDto } from '@/auth/dto';
+import { JwtPayload } from '@/auth/strategies/jwt.strategy';
 import { Prisma, Role } from '@generated/prisma/client';
 
 @Injectable()
@@ -21,16 +23,15 @@ export class AuthService {
     const hashedPassword = await hashPassword(dto.password);
 
     try {
-      const user = await this.prisma.user.create({
+      return await this.prisma.user.create({
         data: {
           name: dto.name,
           email: dto.email,
           password: hashedPassword,
           role: dto.role ?? Role.USER,
         },
+        select: userSafeSelect,
       });
-
-      return this.buildTokenResponse(user.id, user.email, user.role);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -57,23 +58,24 @@ export class AuthService {
       throw new UnauthorizedException('Email ou mot de passe incorrect');
     }
 
-    return { id: user.id, email: user.email, name: user.name, role: user.role };
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      tokenVersion: user.tokenVersion,
+    };
   }
 
-  login(user: { id: number; email: string; role: Role }) {
-    return this.buildTokenResponse(user.id, user.email, user.role);
+  login(user: { id: number; tokenVersion: number }) {
+    const payload: JwtPayload = { sub: user.id, ver: user.tokenVersion };
+    return { accessToken: this.jwtService.sign(payload) };
   }
 
   async getProfile(userId: number) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
-      },
+      select: userSafeSelect,
     });
 
     if (!user) {
@@ -83,12 +85,5 @@ export class AuthService {
     }
 
     return user;
-  }
-
-  private buildTokenResponse(userId: number, email: string, role: Role) {
-    const payload = { sub: userId, email, role };
-    return {
-      accessToken: this.jwtService.sign(payload),
-    };
   }
 }

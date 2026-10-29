@@ -15,8 +15,9 @@ import { trackByIp } from './throttle-trackers';
 const BEARER = /^(\S+)\s+(\S+)$/;
 
 /**
- * Garde de rate-limiting globale : compte par utilisateur quand la requête
- * porte un JWT valide, par IP sinon. En prod, toutes les requêtes arrivent
+ * Garde de rate-limiting globale : compte par utilisateur et version de jeton
+ * quand la requête porte un JWT valide, par IP sinon. Avec la version, un jeton
+ * révoqué n'entame pas le compteur de la session en cours. En prod, toutes les requêtes arrivent
  * du BFF Vercel via Caddy : compter par IP seule mettrait tous les
  * utilisateurs dans le même compteur.
  *
@@ -35,20 +36,21 @@ export class IdentityThrottlerGuard extends ThrottlerGuard {
   }
 
   protected async getTracker(req: Request): Promise<string> {
-    const userId = await this.verifiedUserId(req.headers.authorization);
+    const payload = await this.verifiedPayload(req.headers.authorization);
 
-    return userId === null ? trackByIp(req.ip) : `user:${userId}`;
+    return payload === null
+      ? trackByIp(req.ip)
+      : `user:${payload.sub}:${payload.ver}`;
   }
 
-  private async verifiedUserId(
+  private async verifiedPayload(
     authorization: string | undefined,
-  ): Promise<number | null> {
+  ): Promise<JwtPayload | null> {
     const match = BEARER.exec(authorization ?? '');
     if (!match || match[1].toLowerCase() !== 'bearer') return null;
 
     try {
-      const payload = await this.jwtService.verifyAsync<JwtPayload>(match[2]);
-      return payload.sub;
+      return await this.jwtService.verifyAsync<JwtPayload>(match[2]);
     } catch {
       return null;
     }

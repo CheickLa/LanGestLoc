@@ -23,16 +23,25 @@ describe('IdentityThrottlerGuard — getTracker', () => {
   );
   const track = (req: Request) => guard['getTracker'](req);
 
-  it('compte par utilisateur quand le JWT est valide', async () => {
-    const token = jwtService.sign({ sub: 42, email: 'a@b.c', role: 'USER' });
+  it('compte par utilisateur et version de jeton quand le JWT est valide', async () => {
+    const token = jwtService.sign({ sub: 42, ver: 3 });
 
-    await expect(track(request(`Bearer ${token}`))).resolves.toBe('user:42');
+    await expect(track(request(`Bearer ${token}`))).resolves.toBe('user:42:3');
+  });
+
+  it("un jeton révoqué n'entame pas le compteur du jeton en cours", async () => {
+    const revoked = jwtService.sign({ sub: 42, ver: 2 });
+    const current = jwtService.sign({ sub: 42, ver: 3 });
+
+    expect(await track(request(`Bearer ${revoked}`))).not.toBe(
+      await track(request(`Bearer ${current}`)),
+    );
   });
 
   it('accepte le schéma Bearer quelle que soit sa casse', async () => {
-    const token = jwtService.sign({ sub: 42 });
+    const token = jwtService.sign({ sub: 42, ver: 3 });
 
-    await expect(track(request(`bearer ${token}`))).resolves.toBe('user:42');
+    await expect(track(request(`bearer ${token}`))).resolves.toBe('user:42:3');
   });
 
   it('compte par IP sans en-tête Authorization', async () => {

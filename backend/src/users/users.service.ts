@@ -14,7 +14,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AdminUpdateUserDto } from './dto/admin-update-user.dto';
 
-const userSafeSelect = {
+export const userSafeSelect = {
   id: true,
   name: true,
   email: true,
@@ -85,7 +85,7 @@ export class UsersService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { password: hashedPassword },
+      data: { password: hashedPassword, tokenVersion: { increment: 1 } },
     });
 
     return { message: 'Mot de passe mis à jour' };
@@ -156,7 +156,10 @@ export class UsersService {
               ...(dto.name !== undefined && { name: dto.name }),
               ...(dto.email !== undefined && { email: dto.email }),
               ...(dto.role !== undefined && { role: dto.role }),
-              ...(hashedPassword !== undefined && { password: hashedPassword }),
+              ...(hashedPassword !== undefined && {
+                password: hashedPassword,
+                tokenVersion: { increment: 1 },
+              }),
             },
             select: userSafeSelect,
           });

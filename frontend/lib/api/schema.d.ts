@@ -578,19 +578,6 @@ export interface components {
              */
             role?: "ADMIN" | "USER";
         };
-        AuthTokenEntity: {
-            /** @example eyJhbGciOiJIUzI1NiInR5cCI6IkpXVCJ9... */
-            accessToken: string;
-        };
-        LoginDto: {
-            /**
-             * Format: email
-             * @example john@example.com
-             */
-            email: string;
-            /** @example P@ssw0rd! */
-            password: string;
-        };
         UserEntity: {
             /** @example 1 */
             id: number;
@@ -608,6 +595,19 @@ export interface components {
              * @example 2026-01-15T10:30:00.000Z
              */
             createdAt: string;
+        };
+        LoginDto: {
+            /**
+             * Format: email
+             * @example john@example.com
+             */
+            email: string;
+            /** @example P@ssw0rd! */
+            password: string;
+        };
+        AuthTokenEntity: {
+            /** @example eyJhbGciOiJIUzI1NiInR5cCI6IkpXVCJ9... */
+            accessToken: string;
         };
         CreateLocalDto: {
             /**
@@ -1415,13 +1415,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Compte créé, retourne un accessToken */
+            /** @description Compte créé */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuthTokenEntity"];
+                    "application/json": components["schemas"]["UserEntity"];
                 };
             };
             /** @description Token manquant ou invalide */

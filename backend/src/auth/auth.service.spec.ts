@@ -42,13 +42,16 @@ describe('AuthService', () => {
       password: 'Password123',
     };
 
-    it('should hash password, create user with Role.USER by default, and return token', async () => {
+    it('should hash password, create user with Role.USER by default, and return the user without a token', async () => {
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
-      mockPrisma.user.create.mockResolvedValue({
+      const created = {
         id: 1,
+        name: dto.name,
         email: dto.email,
         role: Role.USER,
-      });
+        createdAt: new Date(),
+      };
+      mockPrisma.user.create.mockResolvedValue(created);
 
       const result = await service.register(dto);
 
@@ -60,13 +63,16 @@ describe('AuthService', () => {
           password: 'hashed-password',
           role: Role.USER,
         },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
       });
-      expect(mockJwtService.sign).toHaveBeenCalledWith({
-        sub: 1,
-        email: dto.email,
-        role: Role.USER,
-      });
-      expect(result).toEqual({ accessToken: 'mock-jwt-token' });
+      expect(mockJwtService.sign).not.toHaveBeenCalled();
+      expect(result).toEqual(created);
     });
 
     it('should use provided role when specified', async () => {
@@ -80,9 +86,11 @@ describe('AuthService', () => {
 
       await service.register(adminDto);
 
-      expect(mockPrisma.user.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ role: Role.ADMIN }),
-      });
+      expect(mockPrisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ role: Role.ADMIN }),
+        }),
+      );
     });
 
     it('should throw ConflictException on duplicate email', async () => {
@@ -118,12 +126,19 @@ describe('AuthService', () => {
         name: 'John',
         role: Role.USER,
         password: 'hashed',
+        tokenVersion: 4,
       });
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       const result = await service.validateUser(email, password);
 
-      expect(result).toEqual({ id: 1, email, name: 'John', role: Role.USER });
+      expect(result).toEqual({
+        id: 1,
+        email,
+        name: 'John',
+        role: Role.USER,
+        tokenVersion: 4,
+      });
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
@@ -151,16 +166,10 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('should return an access token', () => {
-      const user = { id: 1, email: 'john@test.com', role: Role.USER };
+    it('should sign the token with the user token version', () => {
+      const result = service.login({ id: 1, tokenVersion: 3 });
 
-      const result = service.login(user);
-
-      expect(mockJwtService.sign).toHaveBeenCalledWith({
-        sub: 1,
-        email: user.email,
-        role: Role.USER,
-      });
+      expect(mockJwtService.sign).toHaveBeenCalledWith({ sub: 1, ver: 3 });
       expect(result).toEqual({ accessToken: 'mock-jwt-token' });
     });
   });

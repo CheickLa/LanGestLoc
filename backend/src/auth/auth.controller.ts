@@ -29,10 +29,7 @@ import {
   trackLoginByEmail,
 } from '@/auth/guards';
 import { CurrentUser, Roles } from '@/auth/decorators';
-import {
-  AuthenticatedRequest,
-  AuthenticatedUser,
-} from '@/auth/strategies/jwt.strategy';
+import { AuthenticatedUser } from '@/auth/strategies/jwt.strategy';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -44,10 +41,7 @@ export class AuthController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Créer un nouveau compte (ADMIN uniquement)' })
-  @ApiCreatedResponse({
-    description: 'Compte créé, retourne un accessToken',
-    type: AuthTokenEntity,
-  })
+  @ApiCreatedResponse({ description: 'Compte créé', type: UserEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({
     status: 403,
@@ -70,7 +64,11 @@ export class AuthController {
     type: AuthTokenEntity,
   })
   @ApiResponse({ status: 401, description: 'Email ou mot de passe incorrect' })
-  login(@Request() req: AuthenticatedRequest, @Body() _dto: LoginDto) {
+  login(
+    @Request()
+    req: { user: Awaited<ReturnType<AuthService['validateUser']>> },
+    @Body() _dto: LoginDto,
+  ) {
     return this.authService.login(req.user);
   }
 

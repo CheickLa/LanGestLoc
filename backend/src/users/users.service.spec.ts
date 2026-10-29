@@ -152,7 +152,7 @@ describe('UsersService', () => {
   describe('changePassword', () => {
     const userRecord = { id: 1, password: 'hashed-current' };
 
-    it('should hash new password and update user', async () => {
+    it('should hash new password and revoke existing sessions', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(userRecord);
       mockPrisma.user.update.mockResolvedValue({ ...userSafe });
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
@@ -170,7 +170,7 @@ describe('UsersService', () => {
       expect(bcrypt.hash).toHaveBeenCalledWith('newPass123', 10);
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 1 },
-        data: { password: 'hashed-new' },
+        data: { password: 'hashed-new', tokenVersion: { increment: 1 } },
       });
       expect(result).toEqual({ message: 'Mot de passe mis à jour' });
     });
@@ -276,7 +276,7 @@ describe('UsersService', () => {
       );
     });
 
-    it('should update name, email and role when user exists', async () => {
+    it('should update name, email and role without revoking sessions', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: 2, role: Role.USER });
       const updated = {
         ...userSafe,
@@ -307,7 +307,7 @@ describe('UsersService', () => {
       expect(result).toEqual(updated);
     });
 
-    it('should hash the password set by the ADMIN', async () => {
+    it('should hash the password set by the ADMIN and revoke their sessions', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({ id: 2, role: Role.USER });
       mockPrisma.user.update.mockResolvedValue({ ...userSafe, id: 2 });
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-new');
@@ -318,7 +318,7 @@ describe('UsersService', () => {
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 2 },
-          data: { password: 'hashed-new' },
+          data: { password: 'hashed-new', tokenVersion: { increment: 1 } },
         }),
       );
     });

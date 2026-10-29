@@ -8,6 +8,8 @@ import { AuthService } from '@/auth/auth.service';
 import { LocalStrategy, JwtStrategy } from '@/auth/strategies';
 import { IdentityThrottlerGuard } from '@/auth/guards/identity-throttler.guard';
 
+const SESSION_DURATION = '45d';
+
 @Module({
   imports: [
     PassportModule,
@@ -21,7 +23,7 @@ import { IdentityThrottlerGuard } from '@/auth/guards/identity-throttler.guard';
         }
         return {
           secret,
-          signOptions: { expiresIn: config.get('JWT_EXPIRES_IN', '1d') },
+          signOptions: { expiresIn: SESSION_DURATION },
         };
       },
     }),
