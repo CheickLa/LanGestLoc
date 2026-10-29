@@ -23,18 +23,25 @@ describe('AuthController', () => {
   });
 
   describe('POST /auth/register', () => {
-    it('should call authService.register and return token', async () => {
+    it('should call authService.register and return the created user', async () => {
       const dto = {
         name: 'John',
         email: 'john@test.com',
         password: 'Password123',
       };
-      mockAuthService.register.mockResolvedValue({ accessToken: 'token' });
+      const created = {
+        id: 1,
+        name: 'John',
+        email: 'john@test.com',
+        role: Role.USER,
+        createdAt: new Date(),
+      };
+      mockAuthService.register.mockResolvedValue(created);
 
       const result = await controller.register(dto);
 
       expect(mockAuthService.register).toHaveBeenCalledWith(dto);
-      expect(result).toEqual({ accessToken: 'token' });
+      expect(result).toEqual(created);
     });
   });
 

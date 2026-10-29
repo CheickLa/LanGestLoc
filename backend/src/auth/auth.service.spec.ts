@@ -42,14 +42,16 @@ describe('AuthService', () => {
       password: 'Password123',
     };
 
-    it('should hash password, create user with Role.USER by default, and return token', async () => {
+    it('should hash password, create user with Role.USER by default, and return the user without a token', async () => {
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
-      mockPrisma.user.create.mockResolvedValue({
+      const created = {
         id: 1,
+        name: dto.name,
         email: dto.email,
         role: Role.USER,
-        tokenVersion: 0,
-      });
+        createdAt: new Date(),
+      };
+      mockPrisma.user.create.mockResolvedValue(created);
 
       const result = await service.register(dto);
 
@@ -61,9 +63,16 @@ describe('AuthService', () => {
           password: 'hashed-password',
           role: Role.USER,
         },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
       });
-      expect(mockJwtService.sign).toHaveBeenCalledWith({ sub: 1, ver: 0 });
-      expect(result).toEqual({ accessToken: 'mock-jwt-token' });
+      expect(mockJwtService.sign).not.toHaveBeenCalled();
+      expect(result).toEqual(created);
     });
 
     it('should use provided role when specified', async () => {
@@ -77,9 +86,11 @@ describe('AuthService', () => {
 
       await service.register(adminDto);
 
-      expect(mockPrisma.user.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ role: Role.ADMIN }),
-      });
+      expect(mockPrisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ role: Role.ADMIN }),
+        }),
+      );
     });
 
     it('should throw ConflictException on duplicate email', async () => {

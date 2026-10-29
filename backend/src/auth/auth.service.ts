@@ -22,16 +22,21 @@ export class AuthService {
     const hashedPassword = await hashPassword(dto.password);
 
     try {
-      const user = await this.prisma.user.create({
+      return await this.prisma.user.create({
         data: {
           name: dto.name,
           email: dto.email,
           password: hashedPassword,
           role: dto.role ?? Role.USER,
         },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+        },
       });
-
-      return this.login(user);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

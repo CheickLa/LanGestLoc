@@ -921,6 +921,11 @@ async function main() {
     body: { name: 'E2E User', email: newUserEmail, password: userPwd, role: 'USER' },
   });
   expect('POST /auth/register (ADMIN crée un USER) → 201', register, 201);
+  check(
+    'register renvoie le compte créé, sans jeton',
+    register.json?.email === newUserEmail && !('accessToken' in (register.json ?? {})),
+    JSON.stringify(register.json),
+  );
 
   const userLogin = await req('POST', '/auth/login', {
     body: { email: newUserEmail, password: userPwd },

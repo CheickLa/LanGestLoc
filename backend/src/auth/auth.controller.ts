@@ -41,10 +41,7 @@ export class AuthController {
   @Roles(Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Créer un nouveau compte (ADMIN uniquement)' })
-  @ApiCreatedResponse({
-    description: 'Compte créé, retourne un accessToken',
-    type: AuthTokenEntity,
-  })
+  @ApiCreatedResponse({ description: 'Compte créé', type: UserEntity })
   @ApiResponse({ status: 401, description: 'Token manquant ou invalide' })
   @ApiResponse({
     status: 403,
